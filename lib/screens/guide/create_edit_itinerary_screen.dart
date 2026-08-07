@@ -641,7 +641,7 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
                     flex: 4,
                     child: DropdownButtonFormField<int>(
                       isExpanded: true,
-                      initialValue: _durationDays,
+                      value: _durationDays,
                       dropdownColor: Colors.white,
                       style: const TextStyle(color: AppColors.textMain, fontSize: 13),
                       decoration: InputDecoration(
@@ -660,7 +660,7 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
                             _durationDays = val;
                             // Adjust days list length to match dropdown
                             while (_days.length < val) {
-                              _days.add(ItineraryDay(dayNumber: _days.length + 1, dayTitle: '', accommodation: '', activities: []));
+                              _days.add(ItineraryDay(dayNumber: _days.length + 1, dayTitle: '', accommodation: '', accommodationMapsUrl: '', activities: []));
                             }
                             if (_days.length > val) {
                               _days = _days.sublist(0, val);
@@ -675,7 +675,7 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
                     flex: 4,
                     child: DropdownButtonFormField<int>(
                       isExpanded: true,
-                      initialValue: _durationNights,
+                      value: _durationNights,
                       dropdownColor: Colors.white,
                       style: const TextStyle(color: AppColors.textMain, fontSize: 13),
                       decoration: InputDecoration(
@@ -820,7 +820,7 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
                             width: double.infinity,
                             height: double.infinity,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, _, _) => Container(
+                            errorBuilder: (context, error, stackTrace) => Container(
                               color: Colors.grey.shade300,
                               child: const Icon(Icons.image, color: Colors.grey),
                             ),
@@ -1384,6 +1384,7 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
     TextInputType keyboardType = TextInputType.text,
     ValueChanged<String>? onChanged,
   }) {
+    assert(controller == null || initialValue == null, 'Cannot provide both controller and initialValue at the same time');
     return TextFormField(
       controller: controller,
       initialValue: initialValue,
@@ -1416,7 +1417,7 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
   }) {
     return DropdownButtonFormField<T>(
       isExpanded: true,
-      initialValue: value,
+      value: value,
       dropdownColor: Colors.white,
       style: const TextStyle(color: AppColors.textMain, fontSize: 13),
       decoration: InputDecoration(
