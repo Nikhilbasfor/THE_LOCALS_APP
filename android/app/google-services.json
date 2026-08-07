@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "315534724848",
+    "project_id": "yatraki",
+    "storage_bucket": "yatraki.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:315534724848:android:a62406ef00d43971eebc35",
+        "android_client_info": {
+          "package_name": "com.yatraki.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "315534724848-44q6gmfhkv35tdluk24b8480i44rkvie.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBDNeSC26NH00lIuxZQA_GaBDXcicywdM4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "315534724848-44q6gmfhkv35tdluk24b8480i44rkvie.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
