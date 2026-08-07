@@ -1209,7 +1209,7 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
             children: [
               _buildSectionHeader('Logistics & Meeting Spot', Icons.place),
               const SizedBox(height: 14),
-              GooglePlacesFlutter(
+              GooglePlaceAutoCompleteTextField(
                 textEditingController: _meetingPointController,
                 googleAPIKey: "YOUR_GOOGLE_MAPS_API_KEY",
                 inputDecoration: InputDecoration(
@@ -1238,7 +1238,7 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
                     setState(() {
                       _meetingPointController.text = prediction.description!;
                       _meetingPointController.selection = TextSelection.fromPosition(
-                        TextSelectionPosition(offset: _meetingPointController.text.length),
+                        TextPosition(offset: _meetingPointController.text.length),
                       );
                     });
                   }
