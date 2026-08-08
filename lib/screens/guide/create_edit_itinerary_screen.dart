@@ -1211,7 +1211,7 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
               const SizedBox(height: 14),
               GooglePlaceAutoCompleteTextField(
                 textEditingController: _meetingPointController,
-                googleAPIKey: "YOUR_GOOGLE_MAPS_API_KEY",
+                googleAPIKey: "AIzaSyCT8GU_dkAkoLlxhkb9TFc0vQasOHeAFxA",
                 inputDecoration: InputDecoration(
                   labelText: 'Meeting Point Address / Pickup Spot (Uber Places Autocomplete)',
                   hintText: 'Type location... e.g. Dehradun Railway Station Gate 1',
