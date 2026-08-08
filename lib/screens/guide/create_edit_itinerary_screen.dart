@@ -1225,7 +1225,6 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
                 ),
                 debounceTime: 600,
                 countries: const ["in"],
-                isScanText: false,
                 getPlaceDetailWithLatLng: (Prediction prediction) {
                   if (prediction.description != null && prediction.description!.isNotEmpty) {
                     setState(() {
