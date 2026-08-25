@@ -199,7 +199,8 @@ class ExperienceModel {
   final List<String> inclusions;
   final List<String> exclusions;
   final List<ItineraryDay> days;
-  final String status; // "pending", "approved", "rejected"
+  final String status; // "pending", "approved", "rejected", "changes_requested"
+  final String rejectionReason;
   final int createdAt;
 
   ExperienceModel({
@@ -233,6 +234,7 @@ class ExperienceModel {
     this.exclusions = const [],
     this.days = const [],
     this.status = 'pending',
+    this.rejectionReason = '',
     int? createdAt,
   }) : createdAt = createdAt ?? DateTime.now().millisecondsSinceEpoch;
 
@@ -240,11 +242,17 @@ class ExperienceModel {
     // 1. Status normalization
     String rawStatus = (map['status'] ?? map['itineraryStatus'] ?? '').toString().toLowerCase().trim();
     String normalizedStatus = rawStatus;
-    if (rawStatus == 'published' || rawStatus == 'active') {
+    if (rawStatus == 'published' || rawStatus == 'active' || rawStatus == 'approved') {
       normalizedStatus = 'approved';
-    } else if (rawStatus == 'draft' || rawStatus == 'pending_review') {
+    } else if (rawStatus == 'changes_requested') {
+      normalizedStatus = 'changes_requested';
+    } else if (rawStatus == 'rejected' || rawStatus == 'revoked') {
+      normalizedStatus = 'rejected';
+    } else if (rawStatus == 'draft' || rawStatus == 'pending_review' || rawStatus == 'pending' || rawStatus.isEmpty) {
       normalizedStatus = 'pending';
     }
+
+    String parsedRejectionReason = (map['itineraryRejectionReason'] ?? map['rejectionReason'] ?? map['feedback'] ?? '').toString().trim();
 
     // 2. Images list resolution
     List<String> resolvedImages = [];
@@ -326,6 +334,7 @@ class ExperienceModel {
       exclusions: (map['exclusions'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
       days: parsedDays,
       status: normalizedStatus,
+      rejectionReason: parsedRejectionReason,
       createdAt: (map['createdAt'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch,
     );
   }
@@ -336,6 +345,7 @@ class ExperienceModel {
       'title': title,
       'description': description,
       'guideId': guideId,
+      'userId': guideId,
       'guideName': guideName,
       'guideImage': guideImage,
       'guidePhone': guidePhone,
@@ -362,6 +372,8 @@ class ExperienceModel {
       'exclusions': exclusions,
       'days': days.map((e) => e.toMap()).toList(),
       'status': status,
+      'itineraryStatus': status,
+      'rejectionReason': rejectionReason,
       'createdAt': createdAt,
     };
   }

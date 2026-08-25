@@ -50,9 +50,18 @@ class _GuideExperiencesTabState extends State<GuideExperiencesTab> with SingleTi
           }
 
           final allExps = snapshot.data ?? [];
-          final pendingExps = allExps.where((e) => e.status == 'pending').toList();
-          final approvedExps = allExps.where((e) => e.status == 'approved').toList();
-          final rejectedExps = allExps.where((e) => e.status == 'rejected' || e.status == 'revoked').toList();
+          final pendingExps = allExps.where((e) {
+            final s = e.status.toLowerCase().trim();
+            return s == 'pending' || s == 'changes_requested' || s.isEmpty;
+          }).toList();
+          final approvedExps = allExps.where((e) {
+            final s = e.status.toLowerCase().trim();
+            return s == 'approved' || s == 'published' || s == 'active';
+          }).toList();
+          final rejectedExps = allExps.where((e) {
+            final s = e.status.toLowerCase().trim();
+            return s == 'rejected' || s == 'revoked';
+          }).toList();
 
           return Column(
             children: [
@@ -67,7 +76,7 @@ class _GuideExperiencesTabState extends State<GuideExperiencesTab> with SingleTi
                   labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
                   tabs: [
                     Tab(text: 'APPROVED (${approvedExps.length})'),
-                    Tab(text: 'PENDING (${pendingExps.length})'),
+                    Tab(text: 'REQUESTED (${pendingExps.length})'),
                     Tab(text: 'REJECTED (${rejectedExps.length})'),
                   ],
                 ),
@@ -84,7 +93,7 @@ class _GuideExperiencesTabState extends State<GuideExperiencesTab> with SingleTi
                     ),
                     _ItineraryList(
                       list: pendingExps,
-                      emptyMessage: 'No pending itineraries waiting for admin approval.',
+                      emptyMessage: 'No requested itineraries waiting for admin approval.',
                     ),
                     _ItineraryList(
                       list: rejectedExps,
@@ -136,6 +145,8 @@ class _ItineraryList extends StatelessWidget {
       itemCount: list.length,
       itemBuilder: (context, idx) {
         final exp = list[idx];
+        final hasFeedback = exp.rejectionReason.trim().isNotEmpty || exp.status == 'changes_requested';
+
         return Card(
           color: Colors.white,
           elevation: 2,
@@ -166,6 +177,46 @@ class _ItineraryList extends StatelessWidget {
                   '${exp.city}, ${exp.state}',
                   style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
                 ),
+
+                if (hasFeedback) ...[
+                  const SizedBox(height: 10),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.shade50,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.amber.shade300),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.warning_amber_rounded, size: 16, color: Colors.amber.shade900),
+                            const SizedBox(width: 6),
+                            Text(
+                              exp.status == 'changes_requested' ? 'ADMIN REQUESTED CHANGES' : 'ADMIN FEEDBACK',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.amber.shade900,
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (exp.rejectionReason.trim().isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            exp.rejectionReason,
+                            style: TextStyle(fontSize: 12, color: Colors.amber.shade900),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+
                 const Divider(height: 20),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
@@ -182,9 +233,18 @@ class _ItineraryList extends StatelessWidget {
                       },
                     ),
                     const SizedBox(width: 8),
-                    OutlinedButton.icon(
-                      icon: const Icon(Icons.edit, size: 16, color: AppColors.headerNavy),
-                      label: const Text('Edit Itinerary', style: TextStyle(color: AppColors.headerNavy, fontSize: 12)),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: hasFeedback ? Colors.amber.shade800 : AppColors.headerNavy,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      icon: const Icon(Icons.edit, size: 16),
+                      label: Text(
+                        hasFeedback ? 'Edit & Resubmit' : 'Edit Itinerary',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
                       onPressed: () {
                         Navigator.of(context).push(
                           MaterialPageRoute(
@@ -213,19 +273,28 @@ class _StatusBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     Color bg = AppColors.statusPendingBg;
     Color text = AppColors.statusPendingText;
+    String label = status;
 
-    if (status == 'approved') {
+    if (status == 'approved' || status == 'published' || status == 'active') {
       bg = AppColors.statusApprovedBg;
       text = AppColors.statusApprovedText;
+      label = 'APPROVED';
+    } else if (status == 'changes_requested') {
+      bg = Colors.amber.shade100;
+      text = Colors.amber.shade900;
+      label = 'CHANGES REQUESTED';
     } else if (status == 'rejected' || status == 'revoked') {
       bg = AppColors.statusRevokedBg;
       text = AppColors.statusRevokedText;
+      label = 'REJECTED';
+    } else {
+      label = 'PENDING APPROVAL';
     }
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(20)),
-      child: Text(status.toUpperCase(), style: TextStyle(color: text, fontSize: 10, fontWeight: FontWeight.bold)),
+      child: Text(label, style: TextStyle(color: text, fontSize: 10, fontWeight: FontWeight.bold)),
     );
   }
 }

@@ -8,6 +8,7 @@ class AppColors {
   static const Color travellerSoftMint = Color(0xFFD1FAE5);
 
   // Guide Theme Colors (Navy & Dark Slate)
+  static const Color primary = Color(0xFF1B365D);
   static const Color headerNavy = Color(0xFF1B365D);
   static const Color headerDark = Color(0xFF0F172A);
   static const Color skyBlue = Color(0xFFF0F7FF);

@@ -43,3 +43,12 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Sensitive credentials & environment files
+android/local.properties
+ios/Pods/
+*.ipa
+*.apk
+google-services.json
+GoogleService-Info.plist
+

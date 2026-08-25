@@ -11,6 +11,16 @@ class AuthRepository {
 
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
+  Stream<UserModel?> getUserStream(String uid) {
+    if (uid.isEmpty) return Stream.value(null);
+    return _firestore.collection('users').doc(uid).snapshots().map((doc) {
+      if (doc.exists && doc.data() != null) {
+        return UserModel.fromMap(doc.data()!, doc.id);
+      }
+      return null;
+    });
+  }
+
   Future<UserModel?> getUserProfile(String uid) async {
     if (uid.isEmpty) return null;
     try {

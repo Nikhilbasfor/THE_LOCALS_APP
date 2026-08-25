@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../repositories/auth_repository.dart';
 import '../theme/app_colors.dart';
 import 'auth_screen.dart';
 import 'guide/guide_main_screen.dart';
+import 'guide/guide_onboarding_screen.dart';
 import 'traveller/traveller_main_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -35,7 +37,7 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      await _authRepo.login(
+      final userModel = await _authRepo.login(
         email: _emailController.text,
         password: _passwordController.text,
         expectedRole: widget.role,
@@ -49,10 +51,35 @@ class _LoginScreenState extends State<LoginScreen> {
           (route) => false,
         );
       } else {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const GuideMainScreen()),
-          (route) => false,
-        );
+        final currentUser = FirebaseAuth.instance.currentUser;
+        final isEmailVerified = currentUser?.emailVerified ?? false;
+
+        if (!userModel.onboardingComplete) {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(
+              builder: (_) => GuideOnboardingScreen(
+                initialUser: userModel,
+                initialStep: isEmailVerified ? 1 : 0,
+              ),
+            ),
+            (route) => false,
+          );
+        } else if (!userModel.verified) {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(
+              builder: (_) => GuideOnboardingScreen(
+                initialUser: userModel,
+                initialStep: 5,
+              ),
+            ),
+            (route) => false,
+          );
+        } else {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => const GuideMainScreen()),
+            (route) => false,
+          );
+        }
       }
     } catch (e) {
       if (!mounted) return;
@@ -210,11 +237,19 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     GestureDetector(
                       onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => AuthScreen(role: widget.role),
-                          ),
-                        );
+                        if (isGuide) {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const GuideOnboardingScreen(initialStep: 0),
+                            ),
+                          );
+                        } else {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => AuthScreen(role: widget.role),
+                            ),
+                          );
+                        }
                       },
                       child: Text(
                         'Sign Up',

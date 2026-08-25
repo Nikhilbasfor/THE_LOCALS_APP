@@ -1,9 +1,13 @@
+import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:google_places_flutter/google_places_flutter.dart';
 import 'package:google_places_flutter/model/prediction.dart';
+import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../models/experience_model.dart';
 import '../../repositories/auth_repository.dart';
 import '../../repositories/experience_repository.dart';
@@ -40,6 +44,9 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
   final _packingInputController = TextEditingController();
   final _inclusionInputController = TextEditingController();
   final _exclusionInputController = TextEditingController();
+  final _routePinSearchController = TextEditingController();
+
+  static const String _googleApiKey = "AIzaSyCT8GU_dkAkoLlxhkb9TFc0vQasOHeAFxA";
 
   String _selectedState = 'Uttarakhand';
   String _selectedCategory = 'Trekking';
@@ -58,6 +65,122 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
   // Google Maps Pins
   final List<RoutePin> _routePins = [];
   GoogleMapController? _mapController;
+
+  Future<LatLng?> _fetchPlaceDetails(Prediction prediction) async {
+    if (prediction.lat != null && prediction.lng != null) {
+      final lat = double.tryParse(prediction.lat!);
+      final lng = double.tryParse(prediction.lng!);
+      if (lat != null && lng != null) {
+        return LatLng(lat, lng);
+      }
+    }
+
+    if (prediction.placeId != null && prediction.placeId!.isNotEmpty) {
+      try {
+        final url = Uri.parse(
+          'https://maps.googleapis.com/maps/api/place/details/json?place_id=${prediction.placeId}&key=$_googleApiKey',
+        );
+        final response = await http.get(url);
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+          if (data['status'] == 'OK' && data['result']?['geometry']?['location'] != null) {
+            final loc = data['result']['geometry']['location'];
+            final lat = (loc['lat'] as num).toDouble();
+            final lng = (loc['lng'] as num).toDouble();
+            return LatLng(lat, lng);
+          }
+        }
+      } catch (e) {
+        debugPrint('Error fetching place details: $e');
+      }
+    }
+    return null;
+  }
+
+  Future<void> _addRoutePinFromPrediction(Prediction prediction) async {
+    final latLng = await _fetchPlaceDetails(prediction);
+    if (latLng == null) return;
+
+    final placeName = prediction.description ?? prediction.structuredFormatting?.mainText ?? 'Stop Location';
+
+    final newPin = RoutePin(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      name: placeName,
+      type: _routePins.isEmpty ? 'start' : 'stop',
+      lat: latLng.latitude,
+      lng: latLng.longitude,
+      placeId: prediction.placeId ?? '',
+      googleMapsUrl: 'https://maps.google.com/?q=${latLng.latitude},${latLng.longitude}&query_place_id=${prediction.placeId ?? ''}',
+    );
+
+    setState(() {
+      _routePins.add(newPin);
+      _routePinSearchController.clear();
+    });
+
+    _mapController?.animateCamera(
+      CameraUpdate.newLatLngZoom(latLng, 13),
+    );
+  }
+
+  Future<LatLng?> _fetchPlaceDetailsByPlaceId(String placeId) async {
+    if (placeId.isEmpty) return null;
+    final keys = [
+      "AIzaSyCT8GU_dkAkoLlxhkb9TFc0vQasOHeAFxA",
+      "AIzaSyBDNeSC26NH00lIuxZQA_GaBDXcicywdM4",
+    ];
+    for (final apiKey in keys) {
+      try {
+        final url = Uri.parse(
+          'https://maps.googleapis.com/maps/api/place/details/json?place_id=$placeId&key=$apiKey',
+        );
+        final response = await http.get(url);
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+          if (data['status'] == 'OK' && data['result']?['geometry']?['location'] != null) {
+            final loc = data['result']['geometry']['location'];
+            final lat = (loc['lat'] as num).toDouble();
+            final lng = (loc['lng'] as num).toDouble();
+            return LatLng(lat, lng);
+          }
+        }
+      } catch (e) {
+        debugPrint('Error fetching place details by id: $e');
+      }
+    }
+    return null;
+  }
+
+  Future<void> _addRoutePinFromPlaceMap(Map<String, String> item) async {
+    final placeId = item['placeId'] ?? '';
+    final placeName = item['fullDescription'] ?? item['name'] ?? 'Stop Location';
+
+    LatLng? latLng;
+    if (placeId.isNotEmpty) {
+      latLng = await _fetchPlaceDetailsByPlaceId(placeId);
+    }
+
+    if (latLng == null) return;
+
+    final newPin = RoutePin(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      name: placeName,
+      type: _routePins.isEmpty ? 'start' : 'stop',
+      lat: latLng.latitude,
+      lng: latLng.longitude,
+      placeId: placeId,
+      googleMapsUrl: 'https://maps.google.com/?q=${latLng.latitude},${latLng.longitude}&query_place_id=$placeId',
+    );
+
+    setState(() {
+      _routePins.add(newPin);
+      _routePinSearchController.clear();
+    });
+
+    _mapController?.animateCamera(
+      CameraUpdate.newLatLngZoom(latLng, 13),
+    );
+  }
 
   static const List<String> indianStates = [
     'Andhra Pradesh',
@@ -258,6 +381,32 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
     }
   }
 
+  void _onAccommodationSelectedOnMap(LatLng latLng, String placeName, String placeId) {
+    if (latLng.latitude == 0.0 && latLng.longitude == 0.0) return;
+
+    final cleanName = placeName.startsWith('🏨') ? placeName : '🏨 Lodging: $placeName';
+
+    final newPin = RoutePin(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      name: cleanName,
+      type: 'overnight',
+      lat: latLng.latitude,
+      lng: latLng.longitude,
+      placeId: placeId,
+      googleMapsUrl: 'https://maps.google.com/?q=${latLng.latitude},${latLng.longitude}&query_place_id=$placeId',
+    );
+
+    setState(() {
+      if (!_routePins.any((p) => (p.lat - latLng.latitude).abs() < 0.0001 && (p.lng - latLng.longitude).abs() < 0.0001)) {
+        _routePins.add(newPin);
+      }
+    });
+
+    _mapController?.animateCamera(
+      CameraUpdate.newLatLngZoom(latLng, 15),
+    );
+  }
+
   Future<void> _handleSave() async {
     final user = _authRepo.currentUser;
     if (user == null) return;
@@ -354,6 +503,7 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
     _packingInputController.dispose();
     _inclusionInputController.dispose();
     _exclusionInputController.dispose();
+    _routePinSearchController.dispose();
     super.dispose();
   }
 
@@ -576,6 +726,7 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
               _buildSectionHeader('Basic Itinerary Details', Icons.directions_walk),
               const SizedBox(height: 14),
               _buildTextField(
+                key: const ValueKey('input_journey_title'),
                 controller: _titleController,
                 label: 'Journey Title',
                 hint: 'e.g. Kedarkantha Summit Winter Trek',
@@ -607,6 +758,7 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
               ),
               const SizedBox(height: 14),
               _buildTextField(
+                key: const ValueKey('input_city'),
                 controller: _cityController,
                 label: 'City / Base Region',
                 hint: 'e.g. Sankri / Uttarkashi',
@@ -629,6 +781,7 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
                   Expanded(
                     flex: 5,
                     child: _buildTextField(
+                      key: const ValueKey('input_price'),
                       controller: _priceController,
                       label: 'Price / Person (₹)',
                       hint: '1500',
@@ -731,6 +884,7 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
               _buildSectionHeader('Overview & Gallery Photos', Icons.collections),
               const SizedBox(height: 14),
               _buildTextField(
+                key: const ValueKey('input_journey_desc'),
                 controller: _descController,
                 label: 'Itinerary Description',
                 hint: 'Describe the journey highlights, scenery, trail difficulty & culture...',
@@ -766,6 +920,7 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
                 children: [
                   Expanded(
                     child: _buildTextField(
+                      key: const ValueKey('input_image_url'),
                       controller: _imageUrlInputController,
                       label: 'Or Enter Image URL',
                       hint: 'https://images.unsplash.com/...',
@@ -903,6 +1058,7 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
                     ),
                     const SizedBox(height: 10),
                     _buildTextField(
+                      key: ValueKey('input_day_title_${day.dayNumber}'),
                       initialValue: day.dayTitle,
                       label: 'Day Title',
                       hint: 'e.g. Day ${day.dayNumber}: Arrival & Trek Kickoff',
@@ -910,12 +1066,15 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
                       onChanged: (val) => _days[idx] = _copyDay(day, title: val),
                     ),
                     const SizedBox(height: 10),
-                    _buildTextField(
-                      initialValue: day.accommodation,
-                      label: 'Lodging / Accommodation Name',
-                      hint: 'e.g. Mountain Homestay / Swiss Tents',
-                      icon: Icons.hotel,
-                      onChanged: (val) => _days[idx] = _copyDay(day, acc: val),
+                    _AccommodationField(
+                      key: ValueKey('input_accommodation_day_${day.dayNumber}'),
+                      day: day,
+                      onDayUpdated: (updatedDay) {
+                        setState(() {
+                          _days[idx] = updatedDay;
+                        });
+                      },
+                      onLocationSelectedOnMap: _onAccommodationSelectedOnMap,
                     ),
                     const SizedBox(height: 14),
 
@@ -970,6 +1129,7 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: TextFormField(
+                                    key: ValueKey('input_activity_title_${day.dayNumber}_$actIdx'),
                                     initialValue: act.activityTitle,
                                     style: const TextStyle(fontSize: 12, color: AppColors.textMain),
                                     decoration: InputDecoration(
@@ -1029,7 +1189,18 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
         const SizedBox(height: 24),
         _buildSectionHeader('Interactive Route Builder (Map)', Icons.add_location_alt),
         const SizedBox(height: 6),
-        const Text('Tap on map below to place route pins (Start, Stops & Highlights).', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+        const Text('Search location to pin on map or tap directly on map.', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+        const SizedBox(height: 10),
+        _PlaceSearchField(
+          key: const ValueKey('route_builder_place_search_field'),
+          label: 'Search location to add map pin...',
+          hint: 'Type location (e.g. Kedarnath, Dehradun)...',
+          icon: Icons.search,
+          controller: _routePinSearchController,
+          onPlaceSelected: (item) {
+            _addRoutePinFromPlaceMap(item);
+          },
+        ),
         const SizedBox(height: 10),
         Container(
           height: 240,
@@ -1047,35 +1218,45 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
                 ),
                 onMapCreated: (controller) => _mapController = controller,
                 onTap: (latLng) {
+                  final pinNum = _routePins.length + 1;
+                  final newPin = RoutePin(
+                    id: DateTime.now().millisecondsSinceEpoch.toString(),
+                    name: 'Pin $pinNum',
+                    type: _routePins.isEmpty ? 'start' : 'stop',
+                    lat: latLng.latitude,
+                    lng: latLng.longitude,
+                  );
                   setState(() {
-                    _routePins.add(
-                      RoutePin(
-                        id: DateTime.now().millisecondsSinceEpoch.toString(),
-                        name: 'Pin ${_routePins.length + 1}',
-                        type: _routePins.isEmpty ? 'start' : 'stop',
-                        lat: latLng.latitude,
-                        lng: latLng.longitude,
-                      ),
-                    );
+                    _routePins.add(newPin);
                   });
-                  _mapController?.animateCamera(CameraUpdate.newLatLng(latLng));
+                  _mapController?.animateCamera(
+                    CameraUpdate.newLatLngZoom(latLng, 13),
+                  );
                 },
-                markers: _routePins
-                    .map(
-                      (p) => Marker(
-                        markerId: MarkerId(p.id),
-                        position: LatLng(p.lat, p.lng),
-                        infoWindow: InfoWindow(title: p.name),
-                      ),
-                    )
-                    .toSet(),
+                markers: _routePins.asMap().entries.map((entry) {
+                  final idx = entry.key;
+                  final p = entry.value;
+                  final pinNum = idx + 1;
+                  final cleanName = p.name.replaceAll(RegExp(r'^\d+\.\s*'), '');
+                  return Marker(
+                    markerId: MarkerId(p.id),
+                    position: LatLng(p.lat, p.lng),
+                    infoWindow: InfoWindow(
+                      title: '$pinNum. $cleanName',
+                      snippet: 'Pin $pinNum',
+                    ),
+                    icon: BitmapDescriptor.defaultMarkerWithHue(
+                      idx == 0 ? BitmapDescriptor.hueGreen : BitmapDescriptor.hueRed,
+                    ),
+                  );
+                }).toSet(),
                 polylines: {
-                  if (_routePins.length > 1)
+                  if (_routePins.length >= 2)
                     Polyline(
                       polylineId: const PolylineId('route_line'),
                       points: _routePins.map((p) => LatLng(p.lat, p.lng)).toList(),
-                      color: navyBlue,
-                      width: 4,
+                      color: AppColors.primary,
+                      width: 3,
                     ),
                 },
               ),
@@ -1085,7 +1266,7 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(color: Colors.white.withOpacity(0.9), borderRadius: BorderRadius.circular(6)),
-                  child: const Text('💡 Tap map to drop pins', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: navyBlue)),
+                  child: const Text('💡 Search location above or tap map to drop pins', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: navyBlue)),
                 ),
               ),
             ],
@@ -1126,6 +1307,7 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
                 children: [
                   Expanded(
                     child: _buildTextField(
+                      key: const ValueKey('input_inclusion_field'),
                       controller: _inclusionInputController,
                       label: 'Add Inclusion',
                       hint: 'e.g. Meals, Permits, Guide Fee',
@@ -1166,6 +1348,7 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
                 children: [
                   Expanded(
                     child: _buildTextField(
+                      key: const ValueKey('input_exclusion_field'),
                       controller: _exclusionInputController,
                       label: 'Add Exclusion',
                       hint: 'e.g. Personal Expenses, Insurance',
@@ -1209,38 +1392,14 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
             children: [
               _buildSectionHeader('Logistics & Meeting Spot', Icons.place),
               const SizedBox(height: 14),
-              GooglePlaceAutoCompleteTextField(
-                textEditingController: _meetingPointController,
-                googleAPIKey: "AIzaSyCT8GU_dkAkoLlxhkb9TFc0vQasOHeAFxA",
-                inputDecoration: InputDecoration(
-                  labelText: 'Meeting Point Address / Pickup Spot (Uber Places Autocomplete)',
-                  hintText: 'Type location... e.g. Dehradun Railway Station Gate 1',
-                  prefixIcon: const Icon(Icons.place, color: navyBlue),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
-                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: navyBlue, width: 2)),
-                  filled: true,
-                  fillColor: Colors.white,
-                ),
-                debounceTime: 600,
-                countries: const ["in"],
-                getPlaceDetailWithLatLng: (Prediction prediction) {
-                  if (prediction.description != null && prediction.description!.isNotEmpty) {
-                    setState(() {
-                      _meetingPointController.text = prediction.description!;
-                    });
-                  }
-                },
-                itemClick: (Prediction prediction) {
-                  if (prediction.description != null && prediction.description!.isNotEmpty) {
-                    setState(() {
-                      _meetingPointController.text = prediction.description!;
-                      _meetingPointController.selection = TextSelection.fromPosition(
-                        TextPosition(offset: _meetingPointController.text.length),
-                      );
-                    });
-                  }
+              _PlaceSearchField(
+                key: const ValueKey('meeting_point_place_search_field'),
+                label: 'Meeting Point Address / Pickup Spot',
+                hint: 'Type location... e.g. Dehradun Railway Station Gate 1',
+                icon: Icons.place,
+                controller: _meetingPointController,
+                onPlaceSelected: (item) {
+                  // Text is set automatically by _PlaceSearchField
                 },
               ),
               const SizedBox(height: 14),
@@ -1248,6 +1407,7 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
                 children: [
                   Expanded(
                     child: _buildTextField(
+                      key: const ValueKey('input_packing_field'),
                       controller: _packingInputController,
                       label: 'Add Packing Item',
                       hint: 'e.g. Waterproof Jacket, Thermals',
@@ -1374,6 +1534,7 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
   }
 
   Widget _buildTextField({
+    Key? key,
     TextEditingController? controller,
     String? initialValue,
     required String label,
@@ -1385,6 +1546,7 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
   }) {
     assert(controller == null || initialValue == null, 'Cannot provide both controller and initialValue at the same time');
     return TextFormField(
+      key: key,
       controller: controller,
       initialValue: initialValue,
       maxLines: maxLines,
@@ -1432,6 +1594,452 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
       ),
       items: items.map((i) => DropdownMenuItem<T>(value: i, child: Text(i.toString(), overflow: TextOverflow.ellipsis))).toList(),
       onChanged: onChanged,
+    );
+  }
+}
+
+class _AccommodationField extends StatefulWidget {
+  final ItineraryDay day;
+  final ValueChanged<ItineraryDay> onDayUpdated;
+  final void Function(LatLng latLng, String placeName, String placeId)? onLocationSelectedOnMap;
+
+  const _AccommodationField({
+    super.key,
+    required this.day,
+    required this.onDayUpdated,
+    this.onLocationSelectedOnMap,
+  });
+
+  @override
+  State<_AccommodationField> createState() => _AccommodationFieldState();
+}
+
+class _AccommodationFieldState extends State<_AccommodationField> {
+  static const Color _navyBlue = Color(0xFF1B365D);
+  static const Color _cyanAccent = Color(0xFF00B4D8);
+  static const Color _cyanLightBg = Color(0xFFE0F7FA);
+
+  final TextEditingController _searchController = TextEditingController();
+  List<Map<String, String>> _suggestions = [];
+  bool _isLoading = false;
+  Timer? _debounce;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String query) {
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+    if (query.trim().length < 2) {
+      setState(() {
+        _suggestions = [];
+        _isLoading = false;
+      });
+      return;
+    }
+
+    _debounce = Timer(const Duration(milliseconds: 400), () async {
+      if (!mounted) return;
+      setState(() => _isLoading = true);
+      try {
+        const apiKey = "AIzaSyCT8GU_dkAkoLlxhkb9TFc0vQasOHeAFxA";
+        final url = Uri.parse(
+          'https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${Uri.encodeComponent(query)}&types=lodging&components=country:in&key=$apiKey',
+        );
+        final response = await http.get(url);
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+          if (data['status'] == 'OK' && data['predictions'] != null) {
+            final List predictions = data['predictions'];
+            final results = predictions.take(5).map<Map<String, String>>((p) {
+              final structured = p['structured_formatting'];
+              final mainText = structured != null ? structured['main_text'] ?? '' : p['description'] ?? '';
+              final secondaryText = structured != null ? structured['secondary_text'] ?? '' : '';
+              return {
+                'name': mainText.toString(),
+                'address': secondaryText.toString(),
+                'placeId': (p['place_id'] ?? '').toString(),
+                'fullDescription': (p['description'] ?? '').toString(),
+              };
+            }).toList();
+
+            if (mounted) {
+              setState(() {
+                _suggestions = results;
+                _isLoading = false;
+              });
+            }
+            return;
+          }
+        }
+      } catch (e) {
+        debugPrint('Error searching lodging autocomplete: $e');
+      }
+
+      if (mounted) {
+        setState(() {
+          _suggestions = [];
+          _isLoading = false;
+        });
+      }
+    });
+  }
+
+  Future<void> _selectSuggestion(Map<String, String> item) async {
+    final placeId = item['placeId'] ?? '';
+    final name = item['name'] ?? '';
+    double lat = 0.0;
+    double lng = 0.0;
+
+    if (placeId.isNotEmpty) {
+      try {
+        const apiKey = "AIzaSyCT8GU_dkAkoLlxhkb9TFc0vQasOHeAFxA";
+        final url = Uri.parse(
+          'https://maps.googleapis.com/maps/api/place/details/json?place_id=$placeId&key=$apiKey',
+        );
+        final response = await http.get(url);
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+          if (data['status'] == 'OK' && data['result']?['geometry']?['location'] != null) {
+            final loc = data['result']['geometry']['location'];
+            lat = (loc['lat'] as num).toDouble();
+            lng = (loc['lng'] as num).toDouble();
+          }
+        }
+      } catch (e) {
+        debugPrint('Error fetching accommodation details: $e');
+      }
+    }
+
+    final mapsUrl = "https://maps.google.com/?q=$lat,$lng&query_place_id=$placeId";
+
+    final updatedDay = ItineraryDay(
+      dayNumber: widget.day.dayNumber,
+      dayTitle: widget.day.dayTitle,
+      accommodation: name,
+      accommodationPlaceId: placeId,
+      accommodationMapsUrl: mapsUrl,
+      activities: widget.day.activities,
+      highlights: widget.day.highlights,
+      routePins: widget.day.routePins,
+      mealsIncluded: widget.day.mealsIncluded,
+      transportInfo: widget.day.transportInfo,
+      overnightStay: widget.day.overnightStay,
+    );
+
+    widget.onDayUpdated(updatedDay);
+
+    if (lat != 0.0 && lng != 0.0 && widget.onLocationSelectedOnMap != null) {
+      widget.onLocationSelectedOnMap!(LatLng(lat, lng), name, placeId);
+    }
+
+    setState(() {
+      _suggestions = [];
+      _searchController.clear();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hasAccommodation = widget.day.accommodation.isNotEmpty;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Lodging / Accommodation',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: _navyBlue),
+        ),
+        const SizedBox(height: 6),
+        if (hasAccommodation) ...[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: _cyanLightBg,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: _cyanAccent),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.hotel, size: 18, color: _navyBlue),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: InkWell(
+                    onTap: () async {
+                      final urlStr = widget.day.accommodationMapsUrl.isNotEmpty
+                          ? widget.day.accommodationMapsUrl
+                          : 'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(widget.day.accommodation)}';
+                      final uri = Uri.parse(urlStr);
+                      if (await canLaunchUrl(uri)) {
+                        await launchUrl(uri, mode: LaunchMode.externalApplication);
+                      }
+                    },
+                    child: Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            widget.day.accommodation,
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: _navyBlue),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        const Icon(Icons.map, size: 16, color: _cyanAccent),
+                      ],
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.cancel, size: 18, color: AppColors.brandRed),
+                  onPressed: () {
+                    final updatedDay = ItineraryDay(
+                      dayNumber: widget.day.dayNumber,
+                      dayTitle: widget.day.dayTitle,
+                      accommodation: '',
+                      accommodationPlaceId: '',
+                      accommodationMapsUrl: '',
+                      activities: widget.day.activities,
+                      highlights: widget.day.highlights,
+                      routePins: widget.day.routePins,
+                      mealsIncluded: widget.day.mealsIncluded,
+                      transportInfo: widget.day.transportInfo,
+                      overnightStay: widget.day.overnightStay,
+                    );
+                    widget.onDayUpdated(updatedDay);
+                  },
+                ),
+              ],
+            ),
+          ),
+        ] else ...[
+          TextFormField(
+            key: ValueKey('accommodation_input_day_${widget.day.dayNumber}'),
+            controller: _searchController,
+            style: const TextStyle(fontSize: 13, color: AppColors.textMain),
+            decoration: InputDecoration(
+              hintText: 'Search hotel / accommodation...',
+              hintStyle: const TextStyle(color: Colors.black26, fontSize: 12),
+              prefixIcon: const Icon(Icons.search, color: _navyBlue, size: 18),
+              suffixIcon: _isLoading
+                  ? const Padding(
+                      padding: EdgeInsets.all(12.0),
+                      child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: _navyBlue)),
+                    )
+                  : null,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Colors.black12)),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _navyBlue, width: 1.5)),
+            ),
+            onChanged: _onSearchChanged,
+          ),
+          if (_suggestions.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.black12),
+                boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, 3))],
+              ),
+              child: Column(
+                children: _suggestions.map((item) {
+                  return ListTile(
+                    dense: true,
+                    leading: const Icon(Icons.hotel, size: 18, color: _navyBlue),
+                    title: Text(item['name'] ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                    subtitle: item['address']!.isNotEmpty ? Text(item['address']!, style: const TextStyle(fontSize: 11, color: AppColors.textMuted)) : null,
+                    onTap: () => _selectSuggestion(item),
+                  );
+                }).toList(),
+              ),
+            ),
+          ],
+        ],
+        const SizedBox(height: 4),
+        const Text(
+          'Selected accommodation will be pinned on the interactive map & shown with map link.',
+          style: TextStyle(color: AppColors.textMuted, fontSize: 11, fontStyle: FontStyle.italic),
+        ),
+      ],
+    );
+  }
+}
+
+class _PlaceSearchField extends StatefulWidget {
+  final String label;
+  final String hint;
+  final IconData icon;
+  final TextEditingController controller;
+  final void Function(Map<String, String> place) onPlaceSelected;
+
+  const _PlaceSearchField({
+    super.key,
+    required this.label,
+    required this.hint,
+    required this.icon,
+    required this.controller,
+    required this.onPlaceSelected,
+  });
+
+  @override
+  State<_PlaceSearchField> createState() => _PlaceSearchFieldState();
+}
+
+class _PlaceSearchFieldState extends State<_PlaceSearchField> {
+  final FocusNode _focusNode = FocusNode();
+  List<Map<String, String>> _suggestions = [];
+  bool _isLoading = false;
+  Timer? _debounce;
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String query) {
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+    if (query.trim().length < 2) {
+      if (mounted) {
+        setState(() {
+          _suggestions = [];
+          _isLoading = false;
+        });
+      }
+      return;
+    }
+
+    _debounce = Timer(const Duration(milliseconds: 400), () async {
+      if (!mounted) return;
+      setState(() => _isLoading = true);
+
+      final keys = [
+        "AIzaSyCT8GU_dkAkoLlxhkb9TFc0vQasOHeAFxA",
+        "AIzaSyBDNeSC26NH00lIuxZQA_GaBDXcicywdM4",
+      ];
+
+      for (final apiKey in keys) {
+        try {
+          final url = Uri.parse(
+            'https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${Uri.encodeComponent(query)}&components=country:in&key=$apiKey',
+          );
+          final response = await http.get(url);
+          if (response.statusCode == 200) {
+            final data = jsonDecode(response.body);
+            if (data['status'] == 'OK' && data['predictions'] != null) {
+              final List predictions = data['predictions'];
+              final results = predictions.take(5).map<Map<String, String>>((p) {
+                final structured = p['structured_formatting'];
+                final mainText = structured != null ? structured['main_text'] ?? '' : p['description'] ?? '';
+                final secondaryText = structured != null ? structured['secondary_text'] ?? '' : '';
+                return {
+                  'name': mainText.toString(),
+                  'address': secondaryText.toString(),
+                  'placeId': (p['place_id'] ?? '').toString(),
+                  'fullDescription': (p['description'] ?? '').toString(),
+                };
+              }).toList();
+
+              if (mounted) {
+                setState(() {
+                  _suggestions = results;
+                  _isLoading = false;
+                });
+              }
+              return;
+            }
+          }
+        } catch (e) {
+          debugPrint('Place search API error: $e');
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _suggestions = [];
+          _isLoading = false;
+        });
+      }
+    });
+  }
+
+  void _selectSuggestion(Map<String, String> item) {
+    widget.controller.text = item['fullDescription'] ?? item['name'] ?? '';
+    widget.onPlaceSelected(item);
+    setState(() {
+      _suggestions = [];
+    });
+    _focusNode.unfocus();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextFormField(
+          focusNode: _focusNode,
+          controller: widget.controller,
+          style: const TextStyle(fontSize: 13, color: AppColors.textMain),
+          decoration: InputDecoration(
+            labelText: widget.label,
+            labelStyle: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+            hintText: widget.hint,
+            hintStyle: const TextStyle(color: Colors.black26, fontSize: 12),
+            prefixIcon: Icon(widget.icon, color: const Color(0xFF1B365D), size: 18),
+            suffixIcon: _isLoading
+                ? const Padding(
+                    padding: EdgeInsets.all(12.0),
+                    child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF1B365D))),
+                  )
+                : (widget.controller.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, size: 16, color: Colors.grey),
+                        onPressed: () {
+                          widget.controller.clear();
+                          setState(() => _suggestions = []);
+                        },
+                      )
+                    : null),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            filled: true,
+            fillColor: Colors.white,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Colors.black12)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFF1B365D), width: 1.5)),
+          ),
+          onChanged: _onSearchChanged,
+        ),
+        if (_suggestions.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.black12),
+              boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, 3))],
+            ),
+            child: Column(
+              children: _suggestions.map((item) {
+                return ListTile(
+                  dense: true,
+                  leading: const Icon(Icons.place, size: 18, color: Color(0xFF1B365D)),
+                  title: Text(item['name'] ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                  subtitle: item['address']!.isNotEmpty ? Text(item['address']!, style: const TextStyle(fontSize: 11, color: AppColors.textMuted)) : null,
+                  onTap: () => _selectSuggestion(item),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

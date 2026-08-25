@@ -15,11 +15,16 @@ class ExperienceRepository {
       return experiencesStream.map((experiencesSnap) {
         final Map<String, ExperienceModel> map = {};
 
+        bool isApprovedStatus(String status) {
+          final s = status.trim().toLowerCase();
+          return s == 'approved' || s == 'published' || s == 'active';
+        }
+
         // Parse legacy 'experiences' collection
         for (var doc in experiencesSnap.docs) {
           try {
             final exp = ExperienceModel.fromMap(doc.data(), doc.id);
-            if (exp.status.trim().isEmpty || exp.status == 'approved' || exp.status == 'published' || exp.status == 'active') {
+            if (isApprovedStatus(exp.status)) {
               map[exp.id] = exp;
             }
           } catch (e) {
@@ -27,11 +32,14 @@ class ExperienceRepository {
           }
         }
 
-        // Parse new 'itineraries' collection (overrides if duplicate id)
+        // Parse 'itineraries' collection (overrides or removes deleted/rejected)
         for (var doc in itinerariesSnap.docs) {
           try {
             final exp = ExperienceModel.fromMap(doc.data(), doc.id);
-            if (exp.status.trim().isEmpty || exp.status == 'approved' || exp.status == 'published' || exp.status == 'active') {
+            final s = exp.status.trim().toLowerCase();
+            if (s == 'deleted' || s == 'rejected' || s == 'draft' || s == 'pending' || s == 'changes_requested') {
+              map.remove(exp.id);
+            } else if (isApprovedStatus(exp.status)) {
               map[exp.id] = exp;
             }
           } catch (e) {
@@ -67,7 +75,11 @@ class ExperienceRepository {
           try {
             final exp = ExperienceModel.fromMap(doc.data(), doc.id);
             if (matchesGuide(exp)) {
-              map[exp.id] = exp;
+              if (exp.status.trim().toLowerCase() == 'deleted') {
+                map.remove(exp.id);
+              } else {
+                map[exp.id] = exp;
+              }
             }
           } catch (e) {
             debugPrint('Error parsing guide experience doc ${doc.id}: $e');
@@ -78,7 +90,11 @@ class ExperienceRepository {
           try {
             final exp = ExperienceModel.fromMap(doc.data(), doc.id);
             if (matchesGuide(exp)) {
-              map[exp.id] = exp;
+              if (exp.status.trim().toLowerCase() == 'deleted') {
+                map.remove(exp.id);
+              } else {
+                map[exp.id] = exp;
+              }
             }
           } catch (e) {
             debugPrint('Error parsing guide itinerary doc ${doc.id}: $e');
@@ -97,12 +113,14 @@ class ExperienceRepository {
     try {
       final doc = await _firestore.collection('itineraries').doc(id).get();
       if (doc.exists && doc.data() != null) {
-        return ExperienceModel.fromMap(doc.data()!, doc.id);
+        final exp = ExperienceModel.fromMap(doc.data()!, doc.id);
+        if (exp.status.trim().toLowerCase() != 'deleted') return exp;
       }
 
       final legacyDoc = await _firestore.collection('experiences').doc(id).get();
       if (legacyDoc.exists && legacyDoc.data() != null) {
-        return ExperienceModel.fromMap(legacyDoc.data()!, legacyDoc.id);
+        final exp = ExperienceModel.fromMap(legacyDoc.data()!, legacyDoc.id);
+        if (exp.status.trim().toLowerCase() != 'deleted') return exp;
       }
     } catch (e) {
       debugPrint('ExperienceRepository.getExperienceById Error: $e');
@@ -118,14 +136,24 @@ class ExperienceRepository {
 
     final data = experience.toMap();
     data['id'] = docRef.id;
-    data['status'] = 'pending'; // Requires admin approval upon submit/edit
+    data['status'] = 'pending'; // Reset to pending for admin approval
+    data['itineraryStatus'] = 'pending';
+    data['itineraryVerified'] = false;
+    data['itineraryRejectionReason'] = FieldValue.delete();
+    data['rejectionReason'] = FieldValue.delete();
+    data['feedback'] = FieldValue.delete();
 
     await docRef.set(data, SetOptions(merge: true));
     return docRef.id;
   }
 
-  // Delete Itinerary
+  // Delete Itinerary from BOTH collections
   Future<void> deleteItinerary(String id) async {
-    await _firestore.collection('itineraries').doc(id).delete();
+    try {
+      await _firestore.collection('itineraries').doc(id).delete();
+    } catch (_) {}
+    try {
+      await _firestore.collection('experiences').doc(id).delete();
+    } catch (_) {}
   }
 }

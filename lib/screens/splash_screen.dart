@@ -82,19 +82,28 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
         final userModel = UserModel.fromMap(doc.data()!, doc.id);
 
         if (userModel.role == 'guide') {
-          if (userModel.verified) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const GuideMainScreen()),
-            );
-          } else {
-            // Guide needs onboarding or verification review
+          final isEmailVerified = currentUser.emailVerified;
+          if (!userModel.onboardingComplete) {
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(
                 builder: (_) => GuideOnboardingScreen(
                   initialUser: userModel,
-                  initialStep: userModel.onboardingComplete ? 5 : 1,
+                  initialStep: isEmailVerified ? 1 : 0,
                 ),
               ),
+            );
+          } else if (!userModel.verified) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(
+                builder: (_) => GuideOnboardingScreen(
+                  initialUser: userModel,
+                  initialStep: 5,
+                ),
+              ),
+            );
+          } else {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (_) => const GuideMainScreen()),
             );
           }
         } else {
