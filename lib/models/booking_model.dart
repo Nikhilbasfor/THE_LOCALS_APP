@@ -14,6 +14,7 @@ class BookingModel {
   final int numberOfTravelers;
   final double totalPrice;
   final String status; // "pending", "confirmed", "cancelled", "rejected"
+  final String paymentStatus; // "unpaid", "paid", "refunded"
   final String paymentId;
   final String specialRequests;
   final int createdAt;
@@ -34,6 +35,7 @@ class BookingModel {
     this.numberOfTravelers = 1,
     this.totalPrice = 0.0,
     this.status = 'pending',
+    this.paymentStatus = 'unpaid',
     this.paymentId = '',
     this.specialRequests = '',
     int? createdAt,
@@ -56,6 +58,7 @@ class BookingModel {
       numberOfTravelers: (map['numberOfTravelers'] as num?)?.toInt() ?? (map['guests'] as num?)?.toInt() ?? (map['guestsCount'] as num?)?.toInt() ?? (map['pax'] as num?)?.toInt() ?? 1,
       totalPrice: (map['totalPrice'] as num?)?.toDouble() ?? (map['totalAmount'] as num?)?.toDouble() ?? (map['amount'] as num?)?.toDouble() ?? (map['price'] as num?)?.toDouble() ?? 0.0,
       status: (map['status'] ?? map['bookingStatus'] ?? 'pending').toString().toLowerCase(),
+      paymentStatus: (map['paymentStatus'] ?? (map['paymentId'] != null && (map['paymentId'] as String).isNotEmpty ? 'paid' : 'unpaid')).toString().toLowerCase(),
       paymentId: map['paymentId'] ?? map['transactionId'] ?? '',
       specialRequests: map['specialRequests'] ?? map['notes'] ?? map['message'] ?? '',
       createdAt: (map['createdAt'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch,
@@ -79,6 +82,7 @@ class BookingModel {
       'numberOfTravelers': numberOfTravelers,
       'totalPrice': totalPrice,
       'status': status,
+      'paymentStatus': paymentStatus,
       'paymentId': paymentId,
       'specialRequests': specialRequests,
       'createdAt': createdAt,

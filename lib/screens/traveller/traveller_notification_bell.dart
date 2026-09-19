@@ -13,42 +13,44 @@ class TravellerNotificationBell extends StatelessWidget {
   void _showNotificationBottomSheet(BuildContext context, List<NotificationModel> notifications) {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) {
-        return Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Notifications',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.travellerForestDark),
-                  ),
-                  if (notifications.any((n) => !n.read))
-                    TextButton(
-                      onPressed: () {
-                        final unreadIds = notifications.where((n) => !n.read).map((n) => n.id).toList();
-                        _notifRepo.markAllAsRead(unreadIds);
-                      },
-                      child: const Text('Mark all as read', style: TextStyle(color: AppColors.travellerForestDark, fontSize: 12, fontWeight: FontWeight.bold)),
+        return SizedBox(
+          height: MediaQuery.of(context).size.height * 0.65,
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Notifications',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.travellerForestDark),
                     ),
-                ],
-              ),
-              const Divider(color: Colors.black12),
-              if (notifications.isEmpty) ...[
-                const SizedBox(height: 30),
-                const Center(
-                  child: Text('No notifications yet.', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+                    if (notifications.any((n) => !n.read))
+                      TextButton(
+                        onPressed: () {
+                          final unreadIds = notifications.where((n) => !n.read).map((n) => n.id).toList();
+                          _notifRepo.markAllAsRead(unreadIds);
+                        },
+                        child: const Text('Mark all as read', style: TextStyle(color: AppColors.travellerForestDark, fontSize: 12, fontWeight: FontWeight.bold)),
+                      ),
+                  ],
                 ),
-                const SizedBox(height: 30),
-              ] else
+                const Divider(color: Colors.black12),
+                if (notifications.isEmpty) ...[
+                  const Expanded(
+                    child: Center(
+                      child: Text('No notifications yet.', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+                    ),
+                  ),
+                ] else
                 Expanded(
                   child: ListView.separated(
                     shrinkWrap: true,
@@ -89,9 +91,10 @@ class TravellerNotificationBell extends StatelessWidget {
                 ),
             ],
           ),
-        );
-      },
-    );
+        ),
+      );
+    },
+  );
   }
 
   @override

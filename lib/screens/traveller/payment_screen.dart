@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:razorpay_flutter/razorpay_flutter.dart';
 import '../../models/booking_model.dart';
 import '../../theme/app_colors.dart';
+import 'traveller_main_screen.dart';
 
 class PaymentScreen extends StatefulWidget {
   final BookingModel booking;
@@ -13,8 +15,9 @@ class PaymentScreen extends StatefulWidget {
 }
 
 class _PaymentScreenState extends State<PaymentScreen> {
-  String _selectedPaymentMethod = 'UPI';
+  String _selectedPaymentMethod = 'RAZORPAY';
   bool _isProcessing = false;
+  late Razorpay _razorpay;
 
   final _upiController = TextEditingController(text: 'user@upi');
   final _cardNumController = TextEditingController(text: '4532 •••• •••• 8892');
@@ -22,10 +25,143 @@ class _PaymentScreenState extends State<PaymentScreen> {
   BookingModel get booking => widget.booking;
 
   @override
+  void initState() {
+    super.initState();
+    _razorpay = Razorpay();
+    _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
+    _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
+    _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
+  }
+
+  @override
   void dispose() {
+    _razorpay.clear();
     _upiController.dispose();
     _cardNumController.dispose();
     super.dispose();
+  }
+
+  void _openRazorpayCheckout() {
+    final options = {
+      'key': 'rzp_test_1DP5mmOlF5G5ag', // Default test API key for sandbox testing
+      'amount': (booking.totalPrice * 100).toInt(),
+      'name': 'THE LOCALS',
+      'description': 'Booking for ${booking.experienceTitle}',
+      'prefill': {
+        'contact': booking.travellerPhone.isNotEmpty ? booking.travellerPhone : '9876543210',
+        'email': booking.travellerEmail.isNotEmpty ? booking.travellerEmail : 'traveller@thelocals.com',
+      },
+      'external': {
+        'wallets': ['paytm']
+      },
+      'theme': {
+        'color': '#13352B'
+      }
+    };
+
+    try {
+      _razorpay.open(options);
+    } catch (e) {
+      debugPrint('Error launching Razorpay: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not open Razorpay checkout: $e'), backgroundColor: AppColors.brandRed),
+      );
+    }
+  }
+
+  Future<void> _handlePaymentSuccess(PaymentSuccessResponse response) async {
+    setState(() => _isProcessing = true);
+    try {
+      final paymentId = response.paymentId ?? 'pay_${DateTime.now().millisecondsSinceEpoch}';
+      await FirebaseFirestore.instance
+          .collection('bookings')
+          .doc(booking.id)
+          .update({
+            'paymentStatus': 'paid',
+            'paymentId': paymentId,
+          });
+
+      if (!mounted) return;
+      setState(() => _isProcessing = false);
+      _showSuccessDialog();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isProcessing = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Payment recorded failed: $e'), backgroundColor: AppColors.brandRed),
+      );
+    }
+  }
+
+  void _handlePaymentError(PaymentFailureResponse response) {
+    setState(() => _isProcessing = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Payment cancelled or failed: ${response.message ?? "Error"}'),
+        backgroundColor: AppColors.brandRed,
+      ),
+    );
+  }
+
+  void _handleExternalWallet(ExternalWalletResponse response) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('External Wallet selected: ${response.walletName}')),
+    );
+  }
+
+  void _showSuccessDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: const BoxDecoration(
+                color: AppColors.travellerLightMint,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.check_circle, size: 54, color: AppColors.travellerForestDark),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Booking Request Submitted!',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.travellerForestDark),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Your payment for "${booking.experienceTitle}" is successful. The request has been sent to Guide ${booking.guideName} for confirmation.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 13, color: AppColors.textMuted),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.travellerForestDark,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(
+                      builder: (_) => const TravellerMainScreen(initialTab: 2),
+                    ),
+                    (route) => false,
+                  );
+                },
+                child: const Text('Go to My Bookings'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _processPayment() async {
@@ -35,63 +171,17 @@ class _PaymentScreenState extends State<PaymentScreen> {
     await Future.delayed(const Duration(seconds: 2));
 
     try {
-      // Update booking payment status in Firestore (leave status as pending for Guide approval)
       await FirebaseFirestore.instance
           .collection('bookings')
           .doc(booking.id)
-          .update({'paymentStatus': 'paid'});
+          .update({
+            'paymentStatus': 'paid',
+            'paymentId': 'sim_${DateTime.now().millisecondsSinceEpoch}',
+          });
 
       if (!mounted) return;
-
       setState(() => _isProcessing = false);
-
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (ctx) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: const BoxDecoration(
-                  color: AppColors.travellerLightMint,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.check_circle, size: 54, color: AppColors.travellerForestDark),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Booking Request Submitted!',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.travellerForestDark),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Your payment for "${booking.experienceTitle}" is successful. The request has been sent to Guide ${booking.guideName} for confirmation.',
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 13, color: AppColors.textMuted),
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.travellerForestDark,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                  onPressed: () {
-                    Navigator.of(ctx).pop(); // Dismiss dialog
-                    Navigator.of(context).popUntil((route) => route.isFirst); // Go home
-                  },
-                  child: const Text('Go to My Bookings'),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
+      _showSuccessDialog();
     } catch (e) {
       if (!mounted) return;
       setState(() => _isProcessing = false);
@@ -146,9 +236,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
             const Text('SELECT PAYMENT METHOD', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textMuted, letterSpacing: 1.0)),
             const SizedBox(height: 12),
 
-            _buildPaymentOption('UPI', 'Google Pay / PhonePe / Paytm / BHIM', Icons.qr_code_2),
-            _buildPaymentOption('CARD', 'Credit / Debit / ATM Cards', Icons.credit_card),
-            _buildPaymentOption('NETBANKING', 'HDFC, ICICI, SBI, Axis & More', Icons.account_balance),
+            _buildPaymentOption('RAZORPAY', 'Razorpay Gateway (UPI, Cards, NetBanking, Wallets)', Icons.verified_user),
+            _buildPaymentOption('UPI', 'Manual UPI ID / VPA Entry', Icons.qr_code_2),
+            _buildPaymentOption('CARD', 'Credit / Debit Cards Direct', Icons.credit_card),
             const SizedBox(height: 20),
 
             if (_selectedPaymentMethod == 'UPI') ...[
@@ -189,7 +279,15 @@ class _PaymentScreenState extends State<PaymentScreen> {
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
-                onPressed: _isProcessing ? null : _processPayment,
+                onPressed: _isProcessing
+                    ? null
+                    : () {
+                        if (_selectedPaymentMethod == 'RAZORPAY') {
+                          _openRazorpayCheckout();
+                        } else {
+                          _processPayment();
+                        }
+                      },
                 child: _isProcessing
                     ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                     : Text('Pay ₹${booking.totalPrice.toInt()} & Confirm Booking', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),

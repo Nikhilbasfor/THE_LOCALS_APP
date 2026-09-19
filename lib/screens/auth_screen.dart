@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../repositories/auth_repository.dart';
 import '../theme/app_colors.dart';
+import '../widgets/privacy_policy_dialog.dart';
 import 'guide/guide_onboarding_screen.dart';
 import 'traveller/traveller_main_screen.dart';
 
@@ -180,7 +181,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   keyboardType: TextInputType.phone,
                   style: const TextStyle(color: AppColors.textMain),
                   decoration: const InputDecoration(labelText: 'Phone Number', prefixIcon: Icon(Icons.phone_outlined), border: OutlineInputBorder()),
-                  validator: (val) => (val == null || val.trim().length < 8) ? 'Valid phone required' : null,
+                  validator: (val) => (val == null || !RegExp(r'^[6-9]\d{9}$').hasMatch(val.trim())) ? 'Enter a valid 10-digit mobile number' : null,
                 ),
                 const SizedBox(height: 14),
 
@@ -257,6 +258,20 @@ class _AuthScreenState extends State<AuthScreen> {
                   child: _isLoading
                       ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                       : Text('Register as ${widget.role.toUpperCase()}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                ),
+                const SizedBox(height: 16),
+                Center(
+                  child: TextButton(
+                    onPressed: () => PrivacyPolicyDialog.show(context),
+                    child: Text(
+                      'By registering, you agree to our Privacy Policy',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: themeColor.withValues(alpha: 0.8),
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),

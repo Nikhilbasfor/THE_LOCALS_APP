@@ -20,6 +20,7 @@ class UserModel {
   final String birthState;
   final List<String> regions;
   final List<String> specialties;
+  final List<String> interests;
   final bool onboardingComplete;
   final int createdAt;
 
@@ -45,6 +46,7 @@ class UserModel {
     this.birthState = '',
     this.regions = const [],
     this.specialties = const [],
+    this.interests = const [],
     this.onboardingComplete = false,
     int? createdAt,
   }) : createdAt = createdAt ?? DateTime.now().millisecondsSinceEpoch;
@@ -72,6 +74,7 @@ class UserModel {
       birthState: map['birthState'] ?? '',
       regions: (map['regions'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
       specialties: (map['specialties'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
+      interests: (map['interests'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
       onboardingComplete: map['onboardingComplete'] ?? false,
       createdAt: (map['createdAt'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch,
     );
@@ -100,6 +103,7 @@ class UserModel {
       'birthState': birthState,
       'regions': regions,
       'specialties': specialties,
+      'interests': interests,
       'onboardingComplete': onboardingComplete,
       'createdAt': createdAt,
     };

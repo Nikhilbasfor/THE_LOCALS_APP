@@ -63,7 +63,7 @@ class GuideDashboardTab extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        user.displayName ?? user.email ?? 'Himalayan Guide',
+                        user.displayName ?? user.email ?? 'Local Guide',
                         style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -95,6 +95,15 @@ class GuideDashboardTab extends StatelessWidget {
           StreamBuilder<List<ExperienceModel>>(
             stream: _expRepo.getGuideExperiencesStream(user.uid, user.email),
             builder: (context, expSnapshot) {
+              if (expSnapshot.hasError) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Text('Error loading experiences: ${expSnapshot.error}', style: const TextStyle(color: AppColors.brandRed, fontSize: 12)),
+                  ),
+                );
+              }
+
               final experiences = expSnapshot.data ?? [];
               final approvedExp = experiences.where((e) => e.status == 'approved').length;
               final pendingExp = experiences.where((e) => e.status == 'pending').length;
@@ -102,6 +111,15 @@ class GuideDashboardTab extends StatelessWidget {
               return StreamBuilder<List<BookingModel>>(
                 stream: _bookingRepo.getGuideBookingsStream(user.uid, user.email),
                 builder: (context, bookingSnapshot) {
+                  if (bookingSnapshot.hasError) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Text('Error loading bookings: ${bookingSnapshot.error}', style: const TextStyle(color: AppColors.brandRed, fontSize: 12)),
+                      ),
+                    );
+                  }
+
                   final bookings = bookingSnapshot.data ?? [];
                   final pendingBookings = bookings.where((b) => b.status.toLowerCase() == 'pending').toList();
                   final upcomingBookings = bookings.where((b) => b.status.toLowerCase() == 'confirmed' || b.status.toLowerCase() == 'approved').length;

@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
 import '../../repositories/auth_repository.dart';
+import '../../widgets/privacy_policy_dialog.dart';
 import '../role_selection_screen.dart';
 
 class GuideProfileTab extends StatefulWidget {
@@ -18,6 +19,81 @@ class _GuideProfileTabState extends State<GuideProfileTab> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final AuthRepository _authRepo = AuthRepository();
+
+  void _showDeleteAccountDialog(BuildContext context) {
+    bool isDeleting = false;
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: const Text(
+                'Delete Guide Account',
+                style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.brandRed),
+              ),
+              content: const Text(
+                'Are you sure you want to delete your guide account permanently? This action cannot be undone and will immediately remove your guide profile, hosted experiences, and all associated personal data.',
+                style: TextStyle(fontSize: 13, height: 1.4, color: AppColors.textMain),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isDeleting ? null : () => Navigator.of(ctx).pop(),
+                  child: const Text('Cancel', style: TextStyle(color: AppColors.textMuted)),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.brandRed,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  onPressed: isDeleting
+                      ? null
+                      : () async {
+                          setDialogState(() => isDeleting = true);
+                          try {
+                            await _authRepo.deleteAccount();
+                            if (ctx.mounted) Navigator.of(ctx).pop();
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Your guide account has been deleted permanently.'),
+                                  backgroundColor: AppColors.brandGreen,
+                                ),
+                              );
+                              Navigator.of(context).pushAndRemoveUntil(
+                                MaterialPageRoute(builder: (_) => const RoleSelectionScreen()),
+                                (route) => false,
+                              );
+                            }
+                          } catch (e) {
+                            setDialogState(() => isDeleting = false);
+                            if (ctx.mounted) {
+                              ScaffoldMessenger.of(ctx).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    e.toString().contains('requires-recent-login')
+                                        ? 'Please log out and log in again before deleting your account.'
+                                        : 'Failed to delete account: $e',
+                                  ),
+                                  backgroundColor: AppColors.brandRed,
+                                ),
+                              );
+                            }
+                          }
+                        },
+                  child: isDeleting
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      : const Text('Delete Permanently', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
 
   void _showEditGuideProfileDialog(
     BuildContext context,
@@ -326,6 +402,18 @@ class _GuideProfileTabState extends State<GuideProfileTab> {
               label: 'My Bookings',
               onTap: () => widget.onNavigateToTab(2),
             ),
+            _buildMenuItem(
+              icon: Icons.privacy_tip_outlined,
+              label: 'Privacy Policy & Data Rights',
+              onTap: () => PrivacyPolicyDialog.show(context),
+            ),
+            _buildMenuItem(
+              icon: Icons.delete_forever_outlined,
+              label: 'Delete Account',
+              iconColor: AppColors.brandRed,
+              textColor: AppColors.brandRed,
+              onTap: () => _showDeleteAccountDialog(context),
+            ),
 
             const SizedBox(height: 28),
 
@@ -365,7 +453,12 @@ class _GuideProfileTabState extends State<GuideProfileTab> {
     required IconData icon,
     required String label,
     required VoidCallback onTap,
+    Color? iconColor,
+    Color? textColor,
   }) {
+    final effectiveIconColor = iconColor ?? AppColors.headerNavy;
+    final effectiveTextColor = textColor ?? AppColors.textMain;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
@@ -377,14 +470,14 @@ class _GuideProfileTabState extends State<GuideProfileTab> {
         leading: Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: AppColors.headerNavy.withValues(alpha: 0.1),
+            color: effectiveIconColor.withValues(alpha: 0.1),
             shape: BoxShape.circle,
           ),
-          child: Icon(icon, color: AppColors.headerNavy, size: 20),
+          child: Icon(icon, color: effectiveIconColor, size: 20),
         ),
         title: Text(
           label,
-          style: const TextStyle(color: AppColors.textMain, fontWeight: FontWeight.bold, fontSize: 15),
+          style: TextStyle(color: effectiveTextColor, fontWeight: FontWeight.bold, fontSize: 15),
         ),
         trailing: const Icon(Icons.chevron_right, color: AppColors.textMuted),
         onTap: onTap,

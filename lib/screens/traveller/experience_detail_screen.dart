@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../models/experience_model.dart';
@@ -7,6 +8,7 @@ import '../../models/review_model.dart';
 import '../../repositories/wishlist_repository.dart';
 import '../../repositories/review_repository.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/spring_interactions.dart';
 import 'booking_screen.dart';
 
 class ExperienceDetailScreen extends StatefulWidget {
@@ -30,6 +32,7 @@ class _ExperienceDetailScreenState extends State<ExperienceDetailScreen> {
     return Scaffold(
       backgroundColor: AppColors.bgLight,
       body: CustomScrollView(
+        physics: bespokeBouncingScrollPhysics,
         slivers: [
           // Hero Image Header
           SliverAppBar(
@@ -90,14 +93,23 @@ class _ExperienceDetailScreenState extends State<ExperienceDetailScreen> {
                     itemCount: imagesList.length,
                     onPageChanged: (idx) => setState(() => _currentImageIdx = idx),
                     itemBuilder: (context, idx) {
-                      return Image.network(
-                        imagesList[idx],
+                      final imgUrl = imagesList[idx];
+                      final cachedImg = CachedNetworkImage(
+                        imageUrl: imgUrl,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => Container(
+                        placeholder: (context, url) => Container(
+                          color: AppColors.travellerForestDark,
+                          child: const Center(
+                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                          ),
+                        ),
+                        errorWidget: (_, _, _) => Container(
                           color: AppColors.travellerForestDark,
                           child: const Icon(Icons.image, size: 64, color: Colors.white54),
                         ),
                       );
+
+                      return cachedImg;
                     },
                   ),
                   if (imagesList.length > 1)
@@ -150,52 +162,52 @@ class _ExperienceDetailScreenState extends State<ExperienceDetailScreen> {
                         style: const TextStyle(fontSize: 13, color: AppColors.textMuted, fontWeight: FontWeight.w600),
                       ),
                     ],
-                  ),
+                  ).staggeredEntrance(index: 1),
                   const SizedBox(height: 10),
 
                   // Title
                   Text(
                     exp.title,
                     style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.travellerForestDark),
-                  ),
+                  ).staggeredEntrance(index: 2),
                   const SizedBox(height: 16),
 
                   // Guide Info Banner
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(12.0),
-                      child: Row(
-                        children: [
-                          CircleAvatar(
-                            radius: 22,
-                            backgroundColor: AppColors.travellerForestDark,
-                            child: Text(
-                              exp.guideName.isNotEmpty ? exp.guideName[0].toUpperCase() : 'G',
-                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
-                            ),
+                  SpringCard(
+                    padding: const EdgeInsets.all(12.0),
+                    borderRadius: 14,
+                    border: Border.all(color: AppColors.cardBorder.withValues(alpha: 0.6)),
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 22,
+                          backgroundColor: AppColors.travellerForestDark,
+                          child: Text(
+                            exp.guideName.isNotEmpty ? exp.guideName[0].toUpperCase() : 'G',
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  exp.guideName,
-                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  'Verified Local Guide · ${exp.guideExperienceYears} Yrs Exp',
-                                  style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
-                                ),
-                              ],
-                            ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                exp.guideName,
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Verified Local Guide · ${exp.guideExperienceYears} Yrs Exp',
+                                style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                              ),
+                            ],
                           ),
-                          const Icon(Icons.verified, color: AppColors.brandGreen, size: 20),
-                        ],
-                      ),
+                        ),
+                        const Icon(Icons.verified, color: AppColors.brandGreen, size: 20),
+                      ],
                     ),
-                  ),
+                  ).staggeredEntrance(index: 3),
                   const SizedBox(height: 16),
 
                   // Quick Stats Row
@@ -205,7 +217,7 @@ class _ExperienceDetailScreenState extends State<ExperienceDetailScreen> {
                       const SizedBox(width: 8),
                       _StatChip(icon: Icons.group, label: 'Max ${exp.maxGroupSize} People'),
                     ],
-                  ),
+                  ).staggeredEntrance(index: 4),
                   const SizedBox(height: 20),
 
                   // Overview Description
@@ -366,49 +378,88 @@ class _ExperienceDetailScreenState extends State<ExperienceDetailScreen> {
         ],
       ),
 
-      // Sticky Bottom Booking Bar
+      // Sticky Bottom Booking Bar (Unified single bar, not split)
       bottomNavigationBar: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
         decoration: BoxDecoration(
           color: Colors.white,
+          border: Border(
+            top: BorderSide(color: AppColors.cardBorder.withValues(alpha: 0.7)),
+          ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withAlpha(20),
-              blurRadius: 10,
-              offset: const Offset(0, -3),
+              color: Colors.black.withValues(alpha: 0.08),
+              blurRadius: 16,
+              offset: const Offset(0, -4),
             ),
           ],
         ),
-        child: Row(
-          children: [
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
+        child: SafeArea(
+          top: false,
+          child: BouncingButton(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => BookingScreen(experience: exp),
+                ),
+              );
+            },
+            backgroundColor: AppColors.travellerForestDark,
+            borderRadius: 16,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            child: Row(
               children: [
-                const Text('Price per person', style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
-                Text(
-                  '₹${exp.price.toInt()}',
-                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.travellerForestDark),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'TOTAL PRICE',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white.withValues(alpha: 0.75),
+                        letterSpacing: 1.0,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '₹${exp.price.toInt()} / person',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.white30, width: 0.8),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Book Journey Now',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      SizedBox(width: 6),
+                      Icon(Icons.arrow_forward_rounded, size: 16, color: Colors.white),
+                    ],
+                  ),
                 ),
               ],
             ),
-            const Spacer(),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => BookingScreen(experience: exp),
-                  ),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.travellerForestDark,
-                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              child: const Text('Book Journey Now', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-            ),
-          ],
+          ),
         ),
       ),
     );

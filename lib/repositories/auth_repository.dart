@@ -110,4 +110,35 @@ class AuthRepository {
   Future<void> logout() async {
     await _auth.signOut();
   }
+
+  Stream<List<UserModel>> getGuidesStream() {
+    return _firestore
+        .collection('users')
+        .where('role', isEqualTo: 'guide')
+        .snapshots()
+        .map((snapshot) {
+      final guides = snapshot.docs.map((doc) => UserModel.fromMap(doc.data(), doc.id)).toList();
+      guides.sort((a, b) {
+        if (a.verified != b.verified) {
+          return a.verified ? -1 : 1;
+        }
+        final ratingComp = b.rating.compareTo(a.rating);
+        if (ratingComp != 0) return ratingComp;
+        return a.name.compareTo(b.name);
+      });
+      return guides;
+    });
+  }
+
+  Future<void> deleteAccount() async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+    final uid = user.uid;
+    try {
+      await _firestore.collection('users').doc(uid).delete();
+    } catch (e) {
+      debugPrint('AuthRepository.deleteAccount Firestore delete error: $e');
+    }
+    await user.delete();
+  }
 }

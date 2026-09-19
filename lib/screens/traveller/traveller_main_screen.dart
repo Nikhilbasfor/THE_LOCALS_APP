@@ -1,19 +1,29 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/spring_interactions.dart';
 import 'traveller_dashboard_tab.dart';
 import 'explore_home_screen.dart';
 import 'traveller_bookings_tab.dart';
 import 'traveller_profile_tab.dart';
 
 class TravellerMainScreen extends StatefulWidget {
-  const TravellerMainScreen({super.key});
+  final int initialTab;
+
+  const TravellerMainScreen({super.key, this.initialTab = 0});
 
   @override
   State<TravellerMainScreen> createState() => _TravellerMainScreenState();
 }
 
 class _TravellerMainScreenState extends State<TravellerMainScreen> {
-  int _currentIdx = 0;
+  late int _currentIdx;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIdx = widget.initialTab;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -35,35 +45,63 @@ class _TravellerMainScreenState extends State<TravellerMainScreen> {
         index: _currentIdx,
         children: pages,
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIdx,
-        selectedItemColor: AppColors.travellerForestDark,
-        unselectedItemColor: AppColors.textMuted,
-        type: BottomNavigationBarType.fixed,
-        onTap: (idx) => setState(() => _currentIdx = idx),
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.dashboard_outlined),
-            activeIcon: Icon(Icons.dashboard),
-            label: 'Dashboard',
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border(
+            top: BorderSide(
+              color: AppColors.cardBorder.withValues(alpha: 0.6),
+              width: 1,
+            ),
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.explore_outlined),
-            activeIcon: Icon(Icons.explore),
-            label: 'Explore',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.confirmation_number_outlined),
-            activeIcon: Icon(Icons.confirmation_number),
-            label: 'Bookings',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person_outline),
-            activeIcon: Icon(Icons.person),
-            label: 'Profile',
-          ),
-        ],
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 10,
+              offset: const Offset(0, -3),
+            ),
+          ],
+        ),
+        child: BottomNavigationBar(
+          currentIndex: _currentIdx,
+          elevation: 0,
+          backgroundColor: Colors.transparent,
+          selectedItemColor: AppColors.travellerForestDark,
+          unselectedItemColor: AppColors.textMuted,
+          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 11),
+          type: BottomNavigationBarType.fixed,
+          onTap: (idx) {
+            if (_currentIdx != idx) {
+              HapticFeedback.selectionClick();
+              setState(() => _currentIdx = idx);
+            }
+          },
+          items: [
+            BottomNavigationBarItem(
+              icon: const Icon(Icons.dashboard_outlined),
+              activeIcon: const Icon(Icons.dashboard).springPop(),
+              label: 'Dashboard',
+            ),
+            BottomNavigationBarItem(
+              icon: const Icon(Icons.explore_outlined),
+              activeIcon: const Icon(Icons.explore).springPop(),
+              label: 'Explore',
+            ),
+            BottomNavigationBarItem(
+              icon: const Icon(Icons.confirmation_number_outlined),
+              activeIcon: const Icon(Icons.confirmation_number).springPop(),
+              label: 'Bookings',
+            ),
+            BottomNavigationBarItem(
+              icon: const Icon(Icons.person_outline),
+              activeIcon: const Icon(Icons.person).springPop(),
+              label: 'Profile',
+            ),
+          ],
+        ),
       ),
     );
   }
 }
+

@@ -5,6 +5,7 @@ import '../../models/review_model.dart';
 import '../../repositories/booking_repository.dart';
 import '../../repositories/review_repository.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/spring_interactions.dart';
 
 class TravellerBookingsTab extends StatefulWidget {
   const TravellerBookingsTab({super.key});
@@ -126,6 +127,38 @@ class _TravellerBookingsTabState extends State<TravellerBookingsTab> {
             return const Center(child: CircularProgressIndicator(color: AppColors.travellerForestDark));
           }
 
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.error_outline, size: 48, color: AppColors.brandRed),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Failed to load your bookings',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.travellerForestDark),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '${snapshot.error}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      onPressed: () => setState(() {}),
+                      icon: const Icon(Icons.refresh, size: 16),
+                      label: const Text('Retry'),
+                      style: ElevatedButton.styleFrom(backgroundColor: AppColors.travellerForestDark),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+
           final allBookings = snapshot.data ?? [];
           final upcomingCount = allBookings.where((b) => b.status.toLowerCase() == 'confirmed' || b.status.toLowerCase() == 'approved').length;
           final pendingCount = allBookings.where((b) => b.status.toLowerCase() == 'pending').length;
@@ -191,14 +224,17 @@ class _TravellerBookingsTabState extends State<TravellerBookingsTab> {
                     if (idx == 3) count = cancelledCount;
 
                     return Expanded(
-                      child: GestureDetector(
+                      child: SpringTapFeedback(
+                        scaleDown: 0.94,
                         onTap: () => setState(() => _selectedSubTab = idx),
-                        child: Container(
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          curve: Curves.easeOutCubic,
                           padding: const EdgeInsets.symmetric(vertical: 8),
-                          margin: const EdgeInsets.symmetric(horizontal: 2),
+                          margin: const EdgeInsets.symmetric(horizontal: 3),
                           decoration: BoxDecoration(
                             color: isSel ? AppColors.travellerForestDark : Colors.transparent,
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(10),
                           ),
                           child: Text(
                             '${_subTabs[idx]} ($count)',
@@ -234,59 +270,65 @@ class _TravellerBookingsTabState extends State<TravellerBookingsTab> {
               else
                 Expanded(
                   child: ListView.builder(
+                    physics: bespokeBouncingScrollPhysics,
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     itemCount: filteredBookings.length,
                     itemBuilder: (context, idx) {
                       final b = filteredBookings[idx];
                       final isCompleted = b.status.toLowerCase() == 'completed';
 
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        child: Padding(
-                          padding: const EdgeInsets.all(14.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(b.bookingDate, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.travellerForestDark)),
-                                  _StatusBadge(status: b.status),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              Text(b.experienceTitle, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                              const SizedBox(height: 4),
-                              Text('Guide: ${b.guideName} · ${b.numberOfTravelers} Travelers', style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
-                              const Divider(height: 20),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      const Text('Total Amount', style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
-                                      Text('₹${b.totalPrice.toInt()}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.travellerForestDark)),
-                                    ],
-                                  ),
-                                  if (isCompleted)
-                                    OutlinedButton.icon(
-                                      style: OutlinedButton.styleFrom(
-                                        foregroundColor: AppColors.travellerForestDark,
-                                        side: const BorderSide(color: AppColors.travellerForestDark),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                      ),
-                                      icon: const Icon(Icons.star, size: 16, color: Colors.amber),
-                                      label: const Text('Write Review', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                                      onPressed: () => _showReviewDialog(context, b),
+                      return SpringCard(
+                        scaleDown: 0.98,
+                        borderRadius: 16,
+                        margin: const EdgeInsets.only(bottom: 14),
+                        padding: const EdgeInsets.all(16.0),
+                        border: Border.all(color: AppColors.cardBorder.withValues(alpha: 0.7)),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(b.bookingDate, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.travellerForestDark)),
+                                _StatusBadge(status: b.status),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(b.experienceTitle, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                            const SizedBox(height: 4),
+                            Text('Guide: ${b.guideName} · ${b.numberOfTravelers} Travelers', style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+                            const Divider(height: 20),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text('Total Amount', style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
+                                    Text('₹${b.totalPrice.toInt()}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.travellerForestDark)),
+                                  ],
+                                ),
+                                if (isCompleted)
+                                  BouncingButton(
+                                    backgroundColor: Colors.transparent,
+                                    border: Border.all(color: AppColors.travellerForestDark),
+                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                    borderRadius: 10,
+                                    onPressed: () => _showReviewDialog(context, b),
+                                    child: const Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(Icons.star, size: 15, color: Colors.amber),
+                                        SizedBox(width: 6),
+                                        Text('Write Review', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.travellerForestDark)),
+                                      ],
                                     ),
-                                ],
-                              ),
-                            ],
-                          ),
+                                  ),
+                              ],
+                            ),
+                          ],
                         ),
-                      );
+                      ).staggeredEntrance(index: idx);
                     },
                   ),
                 ),
@@ -298,8 +340,9 @@ class _TravellerBookingsTabState extends State<TravellerBookingsTab> {
   }
 
   Widget _buildTravellerStat(String label, String value, IconData icon, VoidCallback onTap) {
-    return InkWell(
+    return SpringTapFeedback(
       onTap: onTap,
+      scaleDown: 0.92,
       child: Column(
         children: [
           Row(
@@ -316,6 +359,7 @@ class _TravellerBookingsTabState extends State<TravellerBookingsTab> {
       ),
     );
   }
+
 }
 
 class _StatusBadge extends StatelessWidget {

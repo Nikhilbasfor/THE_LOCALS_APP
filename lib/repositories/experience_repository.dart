@@ -54,8 +54,8 @@ class ExperienceRepository {
     });
   }
 
-  // Fetch itineraries belonging to a specific guide from both collections (by ID or Email)
-  Stream<List<ExperienceModel>> getGuideExperiencesStream(String guideId, [String? guideEmail]) {
+  // Fetch itineraries belonging to a specific guide from both collections (by ID, Email, or Name)
+  Stream<List<ExperienceModel>> getGuideExperiencesStream(String guideId, [String? guideEmail, String? guideName]) {
     final itinerariesStream = _firestore.collection('itineraries').snapshots();
     final experiencesStream = _firestore.collection('experiences').snapshots();
 
@@ -68,7 +68,10 @@ class ExperienceRepository {
           final emailMatch = guideEmail != null &&
               guideEmail.isNotEmpty &&
               exp.guideId.toLowerCase().trim() == guideEmail.toLowerCase().trim();
-          return idMatch || emailMatch;
+          final nameMatch = guideName != null &&
+              guideName.isNotEmpty &&
+              exp.guideName.toLowerCase().trim() == guideName.toLowerCase().trim();
+          return idMatch || emailMatch || nameMatch;
         }
 
         for (var doc in experiencesSnap.docs) {

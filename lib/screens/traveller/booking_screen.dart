@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:intl/intl.dart';
 import '../../models/booking_model.dart';
 import '../../models/experience_model.dart';
@@ -124,12 +125,22 @@ class _BookingScreenState extends State<BookingScreen> {
                     children: [
                       ClipRRect(
                         borderRadius: BorderRadius.circular(8),
-                        child: Image.network(
-                          exp.images.isNotEmpty ? exp.images.first : 'https://images.unsplash.com/photo-1506744038136-46273834b3fb',
+                        child: CachedNetworkImage(
+                          imageUrl: exp.images.isNotEmpty ? exp.images.first : 'https://images.unsplash.com/photo-1544735716-392fe2489ffa?auto=format&fit=crop&w=600&q=80',
                           width: 70,
                           height: 70,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) => Container(width: 70, height: 70, color: AppColors.travellerForestDark),
+                          placeholder: (context, url) => Container(
+                            width: 70,
+                            height: 70,
+                            color: AppColors.travellerForestDark.withValues(alpha: 0.1),
+                          ),
+                          errorWidget: (context, url, error) => Container(
+                            width: 70,
+                            height: 70,
+                            color: AppColors.travellerForestDark,
+                            child: const Icon(Icons.image, color: Colors.white54, size: 28),
+                          ),
                         ),
                       ),
                       const SizedBox(width: 12),

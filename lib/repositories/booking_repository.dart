@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import '../models/booking_model.dart';
 
 class BookingRepository {
@@ -10,44 +11,58 @@ class BookingRepository {
     data['id'] = docRef.id;
     await docRef.set(data);
 
-    // Push notification to the guide
+    // Push notification to the guide (soft fail so booking transaction is never aborted)
     if (booking.guideId.isNotEmpty) {
-      await _firestore.collection('notifications').add({
-        'userId': booking.guideId,
-        'title': 'New Booking Request',
-        'message': '${booking.travellerName} requested a booking for "${booking.experienceTitle}" on ${booking.bookingDate}.',
-        'type': 'booking_request',
-        'read': false,
-        'createdAt': DateTime.now().millisecondsSinceEpoch,
-      });
+      try {
+        await _firestore.collection('notifications').add({
+          'userId': booking.guideId,
+          'title': 'New Booking Request',
+          'message': '${booking.travellerName} requested a booking for "${booking.experienceTitle}" on ${booking.bookingDate}.',
+          'type': 'booking_request',
+          'read': false,
+          'createdAt': DateTime.now().millisecondsSinceEpoch,
+        });
+      } catch (e) {
+        debugPrint('Note: Notification push to guide failed (non-fatal): $e');
+      }
     }
 
     return docRef.id;
   }
 
+  /// Scoped stream of bookings for a specific traveller (avoids permission denied under security rules)
   Stream<List<BookingModel>> getTravellerBookingsStream(String travellerId, [String? travellerEmail]) {
-    return _firestore.collection('bookings').snapshots().map((snapshot) {
-      return snapshot.docs.map((doc) => BookingModel.fromMap(doc.data(), doc.id)).where((b) {
-        final tIdMatch = travellerId.isNotEmpty && b.travellerId == travellerId;
-        final emailMatch = travellerEmail != null &&
-            travellerEmail.isNotEmpty &&
-            (b.travellerId.toLowerCase().trim() == travellerEmail.toLowerCase().trim() ||
-             b.travellerEmail.toLowerCase().trim() == travellerEmail.toLowerCase().trim());
-        return tIdMatch || emailMatch;
-      }).toList();
+    if (travellerId.isEmpty) return Stream.value([]);
+
+    // Query strictly scoped by travellerId for Firestore security rules compliance
+    return _firestore
+        .collection('bookings')
+        .where('travellerId', isEqualTo: travellerId)
+        .snapshots()
+        .map((snapshot) {
+      final list = snapshot.docs
+          .map((doc) => BookingModel.fromMap(doc.data(), doc.id))
+          .toList();
+      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return list;
     });
   }
 
+  /// Scoped stream of bookings for a specific guide (avoids permission denied under security rules)
   Stream<List<BookingModel>> getGuideBookingsStream(String guideId, [String? guideEmail]) {
-    return _firestore.collection('bookings').snapshots().map((snapshot) {
-      return snapshot.docs.map((doc) => BookingModel.fromMap(doc.data(), doc.id)).where((b) {
-        final gIdMatch = guideId.isNotEmpty && b.guideId == guideId;
-        final emailMatch = guideEmail != null &&
-            guideEmail.isNotEmpty &&
-            (b.guideId.toLowerCase().trim() == guideEmail.toLowerCase().trim() ||
-             b.guideEmail.toLowerCase().trim() == guideEmail.toLowerCase().trim());
-        return gIdMatch || emailMatch;
-      }).toList();
+    if (guideId.isEmpty) return Stream.value([]);
+
+    // Query strictly scoped by guideId for Firestore security rules compliance
+    return _firestore
+        .collection('bookings')
+        .where('guideId', isEqualTo: guideId)
+        .snapshots()
+        .map((snapshot) {
+      final list = snapshot.docs
+          .map((doc) => BookingModel.fromMap(doc.data(), doc.id))
+          .toList();
+      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return list;
     });
   }
 
@@ -72,6 +87,8 @@ class BookingRepository {
           });
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Note: Notification push on booking status update failed (non-fatal): $e');
+    }
   }
 }

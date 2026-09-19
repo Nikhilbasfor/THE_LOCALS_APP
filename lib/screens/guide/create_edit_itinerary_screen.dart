@@ -2,8 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:google_places_flutter/google_places_flutter.dart';
-import 'package:google_places_flutter/model/prediction.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -66,67 +64,10 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
   final List<RoutePin> _routePins = [];
   GoogleMapController? _mapController;
 
-  Future<LatLng?> _fetchPlaceDetails(Prediction prediction) async {
-    if (prediction.lat != null && prediction.lng != null) {
-      final lat = double.tryParse(prediction.lat!);
-      final lng = double.tryParse(prediction.lng!);
-      if (lat != null && lng != null) {
-        return LatLng(lat, lng);
-      }
-    }
-
-    if (prediction.placeId != null && prediction.placeId!.isNotEmpty) {
-      try {
-        final url = Uri.parse(
-          'https://maps.googleapis.com/maps/api/place/details/json?place_id=${prediction.placeId}&key=$_googleApiKey',
-        );
-        final response = await http.get(url);
-        if (response.statusCode == 200) {
-          final data = jsonDecode(response.body);
-          if (data['status'] == 'OK' && data['result']?['geometry']?['location'] != null) {
-            final loc = data['result']['geometry']['location'];
-            final lat = (loc['lat'] as num).toDouble();
-            final lng = (loc['lng'] as num).toDouble();
-            return LatLng(lat, lng);
-          }
-        }
-      } catch (e) {
-        debugPrint('Error fetching place details: $e');
-      }
-    }
-    return null;
-  }
-
-  Future<void> _addRoutePinFromPrediction(Prediction prediction) async {
-    final latLng = await _fetchPlaceDetails(prediction);
-    if (latLng == null) return;
-
-    final placeName = prediction.description ?? prediction.structuredFormatting?.mainText ?? 'Stop Location';
-
-    final newPin = RoutePin(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      name: placeName,
-      type: _routePins.isEmpty ? 'start' : 'stop',
-      lat: latLng.latitude,
-      lng: latLng.longitude,
-      placeId: prediction.placeId ?? '',
-      googleMapsUrl: 'https://maps.google.com/?q=${latLng.latitude},${latLng.longitude}&query_place_id=${prediction.placeId ?? ''}',
-    );
-
-    setState(() {
-      _routePins.add(newPin);
-      _routePinSearchController.clear();
-    });
-
-    _mapController?.animateCamera(
-      CameraUpdate.newLatLngZoom(latLng, 13),
-    );
-  }
-
   Future<LatLng?> _fetchPlaceDetailsByPlaceId(String placeId) async {
     if (placeId.isEmpty) return null;
     final keys = [
-      "AIzaSyCT8GU_dkAkoLlxhkb9TFc0vQasOHeAFxA",
+      _googleApiKey,
       "AIzaSyBDNeSC26NH00lIuxZQA_GaBDXcicywdM4",
     ];
     for (final apiKey in keys) {
@@ -526,6 +467,7 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
     );
 
     if (picked != null) {
+      if (!context.mounted) return;
       final formattedTime = picked.format(context);
       setState(() {
         final currentTitle = _days[dayIdx].activities[actIdx].activityTitle;

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../models/user_model.dart';
 import '../../repositories/auth_repository.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/spring_interactions.dart';
 import '../role_selection_screen.dart';
 import 'guide_dashboard_tab.dart';
 import 'guide_experiences_tab.dart';
@@ -183,35 +185,61 @@ class _GuideMainScreenState extends State<GuideMainScreen> {
               ),
             ],
           ),
-          bottomNavigationBar: BottomNavigationBar(
-            currentIndex: _currentIdx,
-            onTap: (idx) => setState(() => _currentIdx = idx),
-            backgroundColor: Colors.white,
-            selectedItemColor: AppColors.headerNavy,
-            unselectedItemColor: AppColors.textMuted,
-            type: BottomNavigationBarType.fixed,
-            items: const [
-              BottomNavigationBarItem(
-                icon: Icon(Icons.dashboard_outlined),
-                activeIcon: Icon(Icons.dashboard),
-                label: 'Dashboard',
+          bottomNavigationBar: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border(
+                top: BorderSide(
+                  color: AppColors.cardBorder.withValues(alpha: 0.6),
+                  width: 1,
+                ),
               ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.explore_outlined),
-                activeIcon: Icon(Icons.explore),
-                label: 'Experiences',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.confirmation_number_outlined),
-                activeIcon: Icon(Icons.confirmation_number),
-                label: 'Bookings',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.person_outlined),
-                activeIcon: Icon(Icons.person),
-                label: 'Profile',
-              ),
-            ],
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 10,
+                  offset: const Offset(0, -3),
+                ),
+              ],
+            ),
+            child: BottomNavigationBar(
+              currentIndex: _currentIdx,
+              elevation: 0,
+              backgroundColor: Colors.transparent,
+              selectedItemColor: AppColors.headerNavy,
+              unselectedItemColor: AppColors.textMuted,
+              selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+              unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 11),
+              type: BottomNavigationBarType.fixed,
+              onTap: (idx) {
+                if (_currentIdx != idx) {
+                  HapticFeedback.selectionClick();
+                  setState(() => _currentIdx = idx);
+                }
+              },
+              items: [
+                BottomNavigationBarItem(
+                  icon: const Icon(Icons.dashboard_outlined),
+                  activeIcon: const Icon(Icons.dashboard).springPop(),
+                  label: 'Dashboard',
+                ),
+                BottomNavigationBarItem(
+                  icon: const Icon(Icons.explore_outlined),
+                  activeIcon: const Icon(Icons.explore).springPop(),
+                  label: 'Experiences',
+                ),
+                BottomNavigationBarItem(
+                  icon: const Icon(Icons.confirmation_number_outlined),
+                  activeIcon: const Icon(Icons.confirmation_number).springPop(),
+                  label: 'Bookings',
+                ),
+                BottomNavigationBarItem(
+                  icon: const Icon(Icons.person_outlined),
+                  activeIcon: const Icon(Icons.person).springPop(),
+                  label: 'Profile',
+                ),
+              ],
+            ),
           ),
         );
       },

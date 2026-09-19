@@ -1,0 +1,44 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // User profiles (Travellers, Guides, Admins)
+    match /users/{userId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // Itineraries created by Guides (New Collection)
+    match /itineraries/{itineraryId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // Experiences (Legacy Collection)
+    match /experiences/{experienceId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // Booking Orders
+    match /bookings/{bookingId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Wishlist items
+    match /wishlists/{docId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Reviews & Ratings
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // In-app Notifications
+    match /notifications/{notifId} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
