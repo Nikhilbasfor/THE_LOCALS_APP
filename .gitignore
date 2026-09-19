@@ -50,5 +50,4 @@ ios/Pods/
 *.ipa
 *.apk
 google-services.json
-GoogleService-Info.plist
 
