@@ -103,6 +103,7 @@ class ItineraryDay {
   final List<String> mealsIncluded;
   final String transportInfo;
   final String overnightStay;
+  final bool hasOvernightStay;
   final List<TimelineItem> activities;
   final List<String> highlights;
   final List<RoutePin> routePins;
@@ -116,6 +117,7 @@ class ItineraryDay {
     this.mealsIncluded = const [],
     this.transportInfo = '',
     this.overnightStay = '',
+    this.hasOvernightStay = true,
     this.activities = const [],
     this.highlights = const [],
     this.routePins = const [],
@@ -134,6 +136,10 @@ class ItineraryDay {
           .toList();
     }
 
+    final hasStay = (map['hasOvernightStay'] as bool?) ?? 
+        ((map['accommodation']?.toString().trim().isNotEmpty == true) || 
+         (map['overnightStay']?.toString().trim().isNotEmpty == true));
+
     return ItineraryDay(
       dayNumber: (map['dayNumber'] as num?)?.toInt() ?? 1,
       dayTitle: map['dayTitle'] ?? map['title'] ?? '',
@@ -143,6 +149,7 @@ class ItineraryDay {
       mealsIncluded: (map['mealsIncluded'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
       transportInfo: map['transportInfo'] ?? '',
       overnightStay: map['overnightStay'] ?? '',
+      hasOvernightStay: hasStay,
       activities: parsedActivities,
       highlights: (map['highlights'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
       routePins: (map['routePins'] as List<dynamic>?)
@@ -162,6 +169,7 @@ class ItineraryDay {
       'mealsIncluded': mealsIncluded,
       'transportInfo': transportInfo,
       'overnightStay': overnightStay,
+      'hasOvernightStay': hasOvernightStay,
       'activities': activities.map((e) => e.toMap()).toList(),
       'highlights': highlights,
       'routePins': routePins.map((e) => e.toMap()).toList(),
@@ -187,7 +195,9 @@ class ExperienceModel {
   final int durationNights;
   final int maxGroupSize;
   final String meetingPoint;
+  final String meetingPointMapsUrl;
   final String cancellationPolicy;
+  final String termsAndConditions;
   final String permitsRequired;
   final String fitnessLevel;
   final String tripType;
@@ -221,7 +231,9 @@ class ExperienceModel {
     this.durationNights = 0,
     this.maxGroupSize = 10,
     this.meetingPoint = '',
+    this.meetingPointMapsUrl = '',
     this.cancellationPolicy = '',
+    this.termsAndConditions = '',
     this.permitsRequired = '',
     this.fitnessLevel = '',
     this.tripType = '',
@@ -321,7 +333,9 @@ class ExperienceModel {
       durationNights: (map['durationNights'] as num?)?.toInt() ?? (dDays > 1 ? dDays - 1 : 0),
       maxGroupSize: (map['maxGroupSize'] as num?)?.toInt() ?? 10,
       meetingPoint: map['meetingPoint'] ?? '',
+      meetingPointMapsUrl: map['meetingPointMapsUrl'] ?? map['meetingPointUrl'] ?? '',
       cancellationPolicy: map['cancellationPolicy'] ?? '',
+      termsAndConditions: map['termsAndConditions'] ?? map['terms'] ?? '',
       permitsRequired: map['permitsRequired'] ?? '',
       fitnessLevel: map['fitnessLevel'] ?? '',
       tripType: map['tripType'] ?? map['tripMode'] ?? '',
@@ -359,7 +373,9 @@ class ExperienceModel {
       'durationNights': durationNights,
       'maxGroupSize': maxGroupSize,
       'meetingPoint': meetingPoint,
+      'meetingPointMapsUrl': meetingPointMapsUrl,
       'cancellationPolicy': cancellationPolicy,
+      'termsAndConditions': termsAndConditions,
       'permitsRequired': permitsRequired,
       'fitnessLevel': fitnessLevel,
       'tripType': tripType,

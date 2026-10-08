@@ -320,31 +320,33 @@ class _ExperienceDetailScreenState extends State<ExperienceDetailScreen> {
                         child: Column(
                           children: [
                             if (exp.meetingPoint.isNotEmpty) ...[
-                              _MetaInfoRow(icon: Icons.place, title: 'Meeting Point', detail: exp.meetingPoint),
+                              _MetaInfoRow(icon: Icons.place, title: 'Meeting Point / Pickup Spot', detail: exp.meetingPoint),
                               const SizedBox(height: 6),
                               InkWell(
                                 onTap: () async {
-                                  final query = Uri.encodeComponent(exp.meetingPoint);
-                                  final mapsUri = Uri.parse('https://www.google.com/maps/search/?api=1&query=$query');
+                                  final urlStr = exp.meetingPointMapsUrl.isNotEmpty
+                                      ? exp.meetingPointMapsUrl
+                                      : 'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(exp.meetingPoint)}';
+                                  final mapsUri = Uri.parse(urlStr);
                                   if (await canLaunchUrl(mapsUri)) {
                                     await launchUrl(mapsUri, mode: LaunchMode.externalApplication);
                                   }
                                 },
                                 child: Container(
                                   width: double.infinity,
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                                   decoration: BoxDecoration(
                                     color: AppColors.travellerLightMint,
                                     borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(color: AppColors.travellerForestDark.withAlpha(40)),
+                                    border: Border.all(color: AppColors.travellerForestDark.withAlpha(50)),
                                   ),
                                   child: const Row(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      Icon(Icons.directions, size: 16, color: AppColors.travellerForestDark),
-                                      SizedBox(width: 6),
+                                      Icon(Icons.directions, size: 18, color: AppColors.travellerForestDark),
+                                      SizedBox(width: 8),
                                       Text(
-                                        'Navigate to Meeting Spot on Google Maps 🗺️',
+                                        'Open Directions in Google Maps 🗺️',
                                         style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.travellerForestDark),
                                       ),
                                     ],
@@ -359,6 +361,31 @@ class _ExperienceDetailScreenState extends State<ExperienceDetailScreen> {
                               _MetaInfoRow(icon: Icons.description, title: 'Permits Required', detail: exp.permitsRequired),
                             if (exp.cancellationPolicy.isNotEmpty)
                               _MetaInfoRow(icon: Icons.policy, title: 'Cancellation Policy', detail: exp.cancellationPolicy),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+
+                  // Terms & Conditions
+                  if (exp.termsAndConditions.isNotEmpty) ...[
+                    const Text('Terms & Conditions', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.travellerForestDark)),
+                    const SizedBox(height: 12),
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(14.0),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(Icons.gavel, size: 20, color: AppColors.travellerForestDark),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                exp.termsAndConditions,
+                                style: const TextStyle(fontSize: 13, height: 1.5, color: AppColors.textMain),
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -521,7 +548,28 @@ class _DayAccordionCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (day.accommodation.isNotEmpty || day.accommodationMapsUrl.isNotEmpty) ...[
+                if (!day.hasOvernightStay) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF8E1),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: const Color(0xFFFFE082)),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.wb_sunny_outlined, size: 14, color: Color(0xFFE65100)),
+                        SizedBox(width: 6),
+                        Text(
+                          'Day Trip / In-Transit (No Overnight Stay)',
+                          style: TextStyle(fontSize: 11, color: Color(0xFFE65100), fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                ] else if (day.accommodation.isNotEmpty || day.accommodationMapsUrl.isNotEmpty) ...[
                   InkWell(
                     onTap: () async {
                       final urlStr = day.accommodationMapsUrl.isNotEmpty
@@ -540,15 +588,16 @@ class _DayAccordionCard extends StatelessWidget {
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.map, size: 16, color: AppColors.headerNavy),
+                          const Icon(Icons.hotel, size: 16, color: AppColors.headerNavy),
                           const SizedBox(width: 6),
                           Expanded(
                             child: Text(
-                              'Open "${day.accommodation.isNotEmpty ? day.accommodation : 'Lodging'}" in Google Maps 🗺️',
+                              'Stay: "${day.accommodation.isNotEmpty ? day.accommodation : 'Lodging'}" · Open in Maps 🗺️',
                               style: const TextStyle(fontSize: 11, color: AppColors.headerNavy, fontWeight: FontWeight.bold),
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
+                          const Icon(Icons.open_in_new, size: 13, color: AppColors.headerNavy),
                         ],
                       ),
                     ),

@@ -12,45 +12,51 @@ import 'guide_main_screen.dart';
 import '../role_selection_screen.dart';
 
 const List<String> allStatesAndUTs = [
-  'Andhra Pradesh',
+  'Nepal',
+  'Bhutan',
+  'Tibet',
+  'Himachal Pradesh',
+  'Uttarakhand',
+  'Jammu and Kashmir',
+  'Ladakh',
+  'Sikkim',
   'Arunachal Pradesh',
   'Assam',
+  'Meghalaya',
+  'Nagaland',
+  'Manipur',
+  'Mizoram',
+  'Tripura',
+  'West Bengal',
+  'Andhra Pradesh',
   'Bihar',
   'Chhattisgarh',
   'Goa',
   'Gujarat',
   'Haryana',
-  'Himachal Pradesh',
   'Jharkhand',
   'Karnataka',
   'Kerala',
   'Madhya Pradesh',
   'Maharashtra',
-  'Manipur',
-  'Meghalaya',
-  'Mizoram',
-  'Nagaland',
   'Odisha',
   'Punjab',
   'Rajasthan',
-  'Sikkim',
   'Tamil Nadu',
   'Telangana',
-  'Tripura',
   'Uttar Pradesh',
-  'Uttarakhand',
-  'West Bengal',
   'Andaman and Nicobar Islands',
   'Chandigarh',
   'Dadra and Nagar Haveli and Daman and Diu',
   'Delhi (NCT)',
-  'Jammu and Kashmir',
-  'Ladakh',
   'Lakshadweep',
   'Puducherry',
 ];
 
 const Map<String, List<String>> stateCitiesMap = {
+  'Nepal': ['Kathmandu', 'Pokhara', 'Lalitpur', 'Bharatpur', 'Lukla', 'Namche Bazaar', 'Chitwan', 'Nagarkot'],
+  'Bhutan': ['Thimphu', 'Paro', 'Punakha', 'Phuentsholing', 'Jakhar', 'Wangdue Phodrang'],
+  'Tibet': ['Lhasa', 'Shigatse', 'Gyantse', 'Chamdo', 'Nyingchi', 'Tingri'],
   'Andhra Pradesh': ['Visakhapatnam', 'Vijayawada', 'Guntur', 'Nellore', 'Kurnool', 'Tirupati', 'Rajahmundry', 'Kakinada', 'Anantapur', 'Eluru'],
   'Arunachal Pradesh': ['Itanagar', 'Naharlagun', 'Pasighat', 'Tawang', 'Ziro', 'Bomdila', 'Tezu', 'Changlang'],
   'Assam': ['Guwahati', 'Silchar', 'Dibrugarh', 'Jorhat', 'Nagaon', 'Tinsukia', 'Tezpur', 'Bongaigaon'],
@@ -1001,12 +1007,12 @@ class _GuideOnboardingScreenState extends State<GuideOnboardingScreen> {
         ),
         const SizedBox(height: 16),
 
-        // Birth State
-        const Text('Native / Birth State (Where Born)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.textMain)),
+        // Birth State / Country / Region
+        const Text('Native State / Country / Region', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.textMain)),
         const SizedBox(height: 6),
         InkWell(
           onTap: () async {
-            final picked = await _showSearchableStatePicker(context, _selectedBirthState, 'Select Native / Birth State');
+            final picked = await _showSearchableStatePicker(context, _selectedBirthState, 'Select State / Country / Region');
             if (picked != null) {
               setState(() => _selectedBirthState = picked);
             }
@@ -1035,12 +1041,12 @@ class _GuideOnboardingScreenState extends State<GuideOnboardingScreen> {
         ),
         const SizedBox(height: 16),
 
-        // Primary Operating State (Searchable Dropdown)
-        const Text('Primary Operating State (Where You Work)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.textMain)),
+        // Primary Operating State / Country / Region (Searchable Dropdown)
+        const Text('Primary Operating State / Country / Region', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.textMain)),
         const SizedBox(height: 6),
         InkWell(
           onTap: () async {
-            final picked = await _showSearchableStatePicker(context, _selectedOperatingState, 'Select Primary Operating State');
+            final picked = await _showSearchableStatePicker(context, _selectedOperatingState, 'Select Operating State / Region');
             if (picked != null && picked != _selectedOperatingState) {
               setState(() {
                 _selectedOperatingState = picked;

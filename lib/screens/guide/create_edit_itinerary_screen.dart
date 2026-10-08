@@ -35,7 +35,9 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
   final _cityController = TextEditingController();
   final _priceController = TextEditingController();
   final _meetingPointController = TextEditingController();
+  final _meetingPointMapsUrlController = TextEditingController();
   final _cancellationPolicyController = TextEditingController();
+  final _termsAndConditionsController = TextEditingController();
   final _permitsRequiredController = TextEditingController();
 
   final _imageUrlInputController = TextEditingController();
@@ -124,40 +126,43 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
   }
 
   static const List<String> indianStates = [
-    'Andhra Pradesh',
+    'Nepal',
+    'Bhutan',
+    'Tibet',
+    'Himachal Pradesh',
+    'Uttarakhand',
+    'Jammu & Kashmir',
+    'Ladakh',
+    'Sikkim',
     'Arunachal Pradesh',
     'Assam',
+    'Meghalaya',
+    'Nagaland',
+    'Manipur',
+    'Mizoram',
+    'Tripura',
+    'West Bengal',
+    'Andhra Pradesh',
     'Bihar',
     'Chhattisgarh',
     'Goa',
     'Gujarat',
     'Haryana',
-    'Himachal Pradesh',
     'Jharkhand',
     'Karnataka',
     'Kerala',
     'Madhya Pradesh',
     'Maharashtra',
-    'Manipur',
-    'Meghalaya',
-    'Mizoram',
-    'Nagaland',
     'Odisha',
     'Punjab',
     'Rajasthan',
-    'Sikkim',
     'Tamil Nadu',
     'Telangana',
-    'Tripura',
     'Uttar Pradesh',
-    'Uttarakhand',
-    'West Bengal',
     'Andaman & Nicobar Islands',
     'Chandigarh',
     'Dadra & Nagar Haveli & Daman & Diu',
     'Delhi (NCT)',
-    'Jammu & Kashmir',
-    'Ladakh',
     'Lakshadweep',
     'Puducherry',
   ];
@@ -203,7 +208,9 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
       _cityController.text = exp.city;
       _priceController.text = exp.price > 0 ? exp.price.toInt().toString() : '';
       _meetingPointController.text = exp.meetingPoint;
+      _meetingPointMapsUrlController.text = exp.meetingPointMapsUrl;
       _cancellationPolicyController.text = exp.cancellationPolicy;
+      _termsAndConditionsController.text = exp.termsAndConditions;
       _permitsRequiredController.text = exp.permitsRequired;
 
       _selectedState = indianStates.contains(exp.state) ? exp.state : 'Uttarakhand';
@@ -396,7 +403,9 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
         durationNights: _durationNights,
         maxGroupSize: _maxGroupSize,
         meetingPoint: _meetingPointController.text.trim(),
+        meetingPointMapsUrl: _meetingPointMapsUrlController.text.trim(),
         cancellationPolicy: _cancellationPolicyController.text.trim(),
+        termsAndConditions: _termsAndConditionsController.text.trim(),
         permitsRequired: _permitsRequiredController.text.trim(),
         images: _galleryImages,
         thingsToCarry: _thingsToCarry,
@@ -438,7 +447,9 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
     _cityController.dispose();
     _priceController.dispose();
     _meetingPointController.dispose();
+    _meetingPointMapsUrlController.dispose();
     _cancellationPolicyController.dispose();
+    _termsAndConditionsController.dispose();
     _permitsRequiredController.dispose();
     _imageUrlInputController.dispose();
     _packingInputController.dispose();
@@ -689,7 +700,7 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: _buildDropdown<String>(
-                      label: 'State',
+                      label: 'State / Country / Region',
                       value: _selectedState,
                       icon: Icons.map,
                       items: indianStates,
@@ -699,13 +710,38 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
                 ],
               ),
               const SizedBox(height: 14),
-              _buildTextField(
+              _PlaceSearchField(
                 key: const ValueKey('input_city'),
                 controller: _cityController,
                 label: 'City / Base Region',
-                hint: 'e.g. Sankri / Uttarkashi',
+                hint: 'Search starting city... e.g. Manali, Pokhara, Leh, Gangtok',
                 icon: Icons.location_city,
+                onPlaceSelected: (item) {
+                  final pName = item['name'] ?? '';
+                  if (pName.isNotEmpty) {
+                    setState(() => _cityController.text = pName);
+                  }
+                },
               ),
+              if (_cityController.text.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: cyanLightBg,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: cyanAccent.withOpacity(0.5)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.pin_drop, size: 14, color: navyBlue),
+                      const SizedBox(width: 4),
+                      Text('Base Hub: ${_cityController.text}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: navyBlue)),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -1337,22 +1373,57 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
               _PlaceSearchField(
                 key: const ValueKey('meeting_point_place_search_field'),
                 label: 'Meeting Point Address / Pickup Spot',
-                hint: 'Type location... e.g. Dehradun Railway Station Gate 1',
+                hint: 'Type location... e.g. Dehradun Railway Station Gate 1, Pokhara Lakeside',
                 icon: Icons.place,
                 controller: _meetingPointController,
                 onPlaceSelected: (item) {
-                  // Text is set automatically by _PlaceSearchField
+                  final pName = item['name'] ?? '';
+                  if (pName.isNotEmpty) {
+                    _meetingPointController.text = pName;
+                    if (_meetingPointMapsUrlController.text.isEmpty) {
+                      _meetingPointMapsUrlController.text =
+                          'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(pName)}';
+                    }
+                  }
                 },
               ),
+              const SizedBox(height: 10),
+              _buildTextField(
+                key: const ValueKey('input_meeting_maps_url'),
+                controller: _meetingPointMapsUrlController,
+                label: 'Google Maps Link / Directions URL (Auto-filled or Custom)',
+                hint: 'https://maps.google.com/?q=...',
+                icon: Icons.map,
+              ),
               const SizedBox(height: 14),
+              const Text('Things to Carry / Packing Checklist', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: navyBlue)),
+              const SizedBox(height: 6),
+              // Quick-add suggestions
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  'Warm Layers', 'Trekking Shoes', 'Rain Poncho', 'Water Bottle',
+                  'First Aid Kit', 'Valid Government ID', 'Headlamp', 'Sunscreen'
+                ].map((quick) => ActionChip(
+                  label: Text('+ $quick', style: const TextStyle(fontSize: 11, color: navyBlue, fontWeight: FontWeight.w600)),
+                  backgroundColor: cyanLightBg,
+                  onPressed: () {
+                    if (!_thingsToCarry.contains(quick)) {
+                      setState(() => _thingsToCarry.add(quick));
+                    }
+                  },
+                )).toList(),
+              ),
+              const SizedBox(height: 10),
               Row(
                 children: [
                   Expanded(
                     child: _buildTextField(
                       key: const ValueKey('input_packing_field'),
                       controller: _packingInputController,
-                      label: 'Add Packing Item',
-                      hint: 'e.g. Waterproof Jacket, Thermals',
+                      label: 'Custom Packing Item',
+                      hint: 'e.g. Waterproof Gloves, Thermals',
                       icon: Icons.backpack,
                     ),
                   ),
@@ -1371,17 +1442,70 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
                   ),
                 ],
               ),
+              if (_thingsToCarry.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: _thingsToCarry
+                      .map((item) => Chip(
+                            backgroundColor: cyanLightBg,
+                            label: Text(item, style: const TextStyle(fontSize: 12, color: navyBlue)),
+                            deleteIcon: const Icon(Icons.cancel, size: 14, color: navyBlue),
+                            onDeleted: () => setState(() => _thingsToCarry.remove(item)),
+                          ))
+                      .toList(),
+                ),
+              ],
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 16),
+        _buildCardContainer(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildSectionHeader('Terms & Conditions', Icons.gavel),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Guidelines, safety policies, and cancellation requirements for travellers.',
+                      style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+                    ),
+                  ),
+                  TextButton.icon(
+                    icon: const Icon(Icons.auto_fix_high, size: 14, color: navyBlue),
+                    label: const Text('Insert Standard Terms', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: navyBlue)),
+                    onPressed: () {
+                      setState(() {
+                        _termsAndConditionsController.text =
+                            '1. Valid government identity proof required at start.\n'
+                            '2. Cancellation up to 48 hours before departure is eligible for refund.\n'
+                            '3. Tour routes subject to weather and mountain safety conditions.\n'
+                            '4. Participants must be medically fit for the chosen difficulty level.';
+                      });
+                    },
+                  ),
+                ],
+              ),
               const SizedBox(height: 8),
-              Wrap(
-                spacing: 6,
-                children: _thingsToCarry
-                    .map((item) => Chip(
-                          backgroundColor: cyanLightBg,
-                          label: Text(item, style: const TextStyle(fontSize: 12, color: navyBlue)),
-                          deleteIcon: const Icon(Icons.cancel, size: 14, color: navyBlue),
-                          onDeleted: () => setState(() => _thingsToCarry.remove(item)),
-                        ))
-                    .toList(),
+              TextFormField(
+                key: const ValueKey('input_terms_conditions'),
+                controller: _termsAndConditionsController,
+                maxLines: 4,
+                style: const TextStyle(fontSize: 13, color: AppColors.textMain),
+                decoration: InputDecoration(
+                  hintText: 'Enter cancellation rules, permit requirements, and safety policies...',
+                  hintStyle: const TextStyle(color: Colors.black26, fontSize: 12),
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Colors.black12)),
+                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: navyBlue, width: 1.5)),
+                ),
               ),
             ],
           ),
@@ -1462,7 +1586,7 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
     );
   }
 
-  ItineraryDay _copyDay(ItineraryDay d, {String? title, String? acc, String? mapsUrl}) {
+  ItineraryDay _copyDay(ItineraryDay d, {String? title, String? acc, String? mapsUrl, bool? hasStay}) {
     return ItineraryDay(
       dayNumber: d.dayNumber,
       dayTitle: title ?? d.dayTitle,
@@ -1472,6 +1596,10 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
       activities: d.activities,
       highlights: d.highlights,
       routePins: d.routePins,
+      hasOvernightStay: hasStay ?? d.hasOvernightStay,
+      mealsIncluded: d.mealsIncluded,
+      transportInfo: d.transportInfo,
+      overnightStay: d.overnightStay,
     );
   }
 
@@ -1576,49 +1704,58 @@ class _AccommodationFieldState extends State<_AccommodationField> {
   void _onSearchChanged(String query) {
     if (_debounce?.isActive ?? false) _debounce!.cancel();
     if (query.trim().length < 2) {
-      setState(() {
-        _suggestions = [];
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _suggestions = [];
+          _isLoading = false;
+        });
+      }
       return;
     }
 
     _debounce = Timer(const Duration(milliseconds: 400), () async {
       if (!mounted) return;
       setState(() => _isLoading = true);
-      try {
-        const apiKey = "AIzaSyCT8GU_dkAkoLlxhkb9TFc0vQasOHeAFxA";
-        final url = Uri.parse(
-          'https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${Uri.encodeComponent(query)}&types=lodging&components=country:in&key=$apiKey',
-        );
-        final response = await http.get(url);
-        if (response.statusCode == 200) {
-          final data = jsonDecode(response.body);
-          if (data['status'] == 'OK' && data['predictions'] != null) {
-            final List predictions = data['predictions'];
-            final results = predictions.take(5).map<Map<String, String>>((p) {
-              final structured = p['structured_formatting'];
-              final mainText = structured != null ? structured['main_text'] ?? '' : p['description'] ?? '';
-              final secondaryText = structured != null ? structured['secondary_text'] ?? '' : '';
-              return {
-                'name': mainText.toString(),
-                'address': secondaryText.toString(),
-                'placeId': (p['place_id'] ?? '').toString(),
-                'fullDescription': (p['description'] ?? '').toString(),
-              };
-            }).toList();
 
-            if (mounted) {
-              setState(() {
-                _suggestions = results;
-                _isLoading = false;
-              });
+      final keys = [
+        "AIzaSyCT8GU_dkAkoLlxhkb9TFc0vQasOHeAFxA",
+        "AIzaSyBDNeSC26NH00lIuxZQA_GaBDXcicywdM4",
+      ];
+
+      for (final apiKey in keys) {
+        try {
+          final url = Uri.parse(
+            'https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${Uri.encodeComponent(query)}&types=lodging&key=$apiKey',
+          );
+          final response = await http.get(url);
+          if (response.statusCode == 200) {
+            final data = jsonDecode(response.body);
+            if (data['status'] == 'OK' && data['predictions'] != null) {
+              final List predictions = data['predictions'];
+              final results = predictions.take(5).map<Map<String, String>>((p) {
+                final structured = p['structured_formatting'];
+                final mainText = structured != null ? structured['main_text'] ?? '' : p['description'] ?? '';
+                final secondaryText = structured != null ? structured['secondary_text'] ?? '' : '';
+                return {
+                  'name': mainText.toString(),
+                  'address': secondaryText.toString(),
+                  'placeId': (p['place_id'] ?? '').toString(),
+                  'fullDescription': (p['description'] ?? '').toString(),
+                };
+              }).toList();
+
+              if (mounted) {
+                setState(() {
+                  _suggestions = results;
+                  _isLoading = false;
+                });
+              }
+              return;
             }
-            return;
           }
+        } catch (e) {
+          debugPrint('Lodging autocomplete error: $e');
         }
-      } catch (e) {
-        debugPrint('Error searching lodging autocomplete: $e');
       }
 
       if (mounted) {
@@ -1636,23 +1773,30 @@ class _AccommodationFieldState extends State<_AccommodationField> {
     double lat = 0.0;
     double lng = 0.0;
 
+    final keys = [
+      "AIzaSyCT8GU_dkAkoLlxhkb9TFc0vQasOHeAFxA",
+      "AIzaSyBDNeSC26NH00lIuxZQA_GaBDXcicywdM4",
+    ];
+
     if (placeId.isNotEmpty) {
-      try {
-        const apiKey = "AIzaSyCT8GU_dkAkoLlxhkb9TFc0vQasOHeAFxA";
-        final url = Uri.parse(
-          'https://maps.googleapis.com/maps/api/place/details/json?place_id=$placeId&key=$apiKey',
-        );
-        final response = await http.get(url);
-        if (response.statusCode == 200) {
-          final data = jsonDecode(response.body);
-          if (data['status'] == 'OK' && data['result']?['geometry']?['location'] != null) {
-            final loc = data['result']['geometry']['location'];
-            lat = (loc['lat'] as num).toDouble();
-            lng = (loc['lng'] as num).toDouble();
+      for (final apiKey in keys) {
+        try {
+          final url = Uri.parse(
+            'https://maps.googleapis.com/maps/api/place/details/json?place_id=$placeId&key=$apiKey',
+          );
+          final response = await http.get(url);
+          if (response.statusCode == 200) {
+            final data = jsonDecode(response.body);
+            if (data['status'] == 'OK' && data['result']?['geometry']?['location'] != null) {
+              final loc = data['result']['geometry']['location'];
+              lat = (loc['lat'] as num).toDouble();
+              lng = (loc['lng'] as num).toDouble();
+              break;
+            }
           }
+        } catch (e) {
+          debugPrint('Accommodation details error: $e');
         }
-      } catch (e) {
-        debugPrint('Error fetching accommodation details: $e');
       }
     }
 
@@ -1664,6 +1808,7 @@ class _AccommodationFieldState extends State<_AccommodationField> {
       accommodation: name,
       accommodationPlaceId: placeId,
       accommodationMapsUrl: mapsUrl,
+      hasOvernightStay: true,
       activities: widget.day.activities,
       highlights: widget.day.highlights,
       routePins: widget.day.routePins,
@@ -1684,21 +1829,150 @@ class _AccommodationFieldState extends State<_AccommodationField> {
     });
   }
 
+  void _clearStay({bool setAsDayTrip = false}) {
+    final updatedDay = ItineraryDay(
+      dayNumber: widget.day.dayNumber,
+      dayTitle: widget.day.dayTitle,
+      accommodation: '',
+      accommodationPlaceId: '',
+      accommodationMapsUrl: '',
+      hasOvernightStay: !setAsDayTrip,
+      activities: widget.day.activities,
+      highlights: widget.day.highlights,
+      routePins: widget.day.routePins,
+      mealsIncluded: widget.day.mealsIncluded,
+      transportInfo: widget.day.transportInfo,
+      overnightStay: widget.day.overnightStay,
+    );
+    widget.onDayUpdated(updatedDay);
+    setState(() {
+      _suggestions = [];
+      _searchController.clear();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isStayRequired = widget.day.hasOvernightStay;
     final hasAccommodation = widget.day.accommodation.isNotEmpty;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Lodging / Accommodation',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: _navyBlue),
+        // Header with Optional / Day-Trip Toggle
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.hotel, size: 16, color: _navyBlue),
+                SizedBox(width: 6),
+                Text(
+                  'Lodging / Overnight Stay',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: _navyBlue),
+                ),
+              ],
+            ),
+            Row(
+              children: [
+                Text(
+                  isStayRequired ? 'Overnight Stay' : 'Day Trip (No Stay)',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: isStayRequired ? _navyBlue : Colors.orange.shade800,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Switch(
+                  value: isStayRequired,
+                  activeThumbColor: _navyBlue,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  onChanged: (val) {
+                    final updatedDay = ItineraryDay(
+                      dayNumber: widget.day.dayNumber,
+                      dayTitle: widget.day.dayTitle,
+                      accommodation: val ? widget.day.accommodation : '',
+                      accommodationPlaceId: val ? widget.day.accommodationPlaceId : '',
+                      accommodationMapsUrl: val ? widget.day.accommodationMapsUrl : '',
+                      hasOvernightStay: val,
+                      activities: widget.day.activities,
+                      highlights: widget.day.highlights,
+                      routePins: widget.day.routePins,
+                      mealsIncluded: widget.day.mealsIncluded,
+                      transportInfo: widget.day.transportInfo,
+                      overnightStay: widget.day.overnightStay,
+                    );
+                    widget.onDayUpdated(updatedDay);
+                  },
+                ),
+              ],
+            ),
+          ],
         ),
         const SizedBox(height: 6),
-        if (hasAccommodation) ...[
+
+        // If marked as Day Trip / In-Transit without overnight stay
+        if (!isStayRequired) ...[
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF8E1),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFFFD54F)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.wb_sunny_outlined, size: 20, color: Color(0xFFE65100)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Day Trip / In-Transit (No Stay Required)',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.orange.shade900),
+                      ),
+                      const SizedBox(height: 2),
+                      const Text(
+                        'No overnight lodging required for this day.',
+                        style: TextStyle(fontSize: 11, color: Color(0xFF795548)),
+                      ),
+                    ],
+                  ),
+                ),
+                TextButton.icon(
+                  icon: const Icon(Icons.add, size: 14, color: _navyBlue),
+                  label: const Text('Add Stay', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: _navyBlue)),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  onPressed: () {
+                    final updatedDay = ItineraryDay(
+                      dayNumber: widget.day.dayNumber,
+                      dayTitle: widget.day.dayTitle,
+                      accommodation: '',
+                      accommodationPlaceId: '',
+                      accommodationMapsUrl: '',
+                      hasOvernightStay: true,
+                      activities: widget.day.activities,
+                      highlights: widget.day.highlights,
+                      routePins: widget.day.routePins,
+                      mealsIncluded: widget.day.mealsIncluded,
+                      transportInfo: widget.day.transportInfo,
+                      overnightStay: widget.day.overnightStay,
+                    );
+                    widget.onDayUpdated(updatedDay);
+                  },
+                ),
+              ],
+            ),
+          ),
+        ] else if (hasAccommodation) ...[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
               color: _cyanLightBg,
               borderRadius: BorderRadius.circular(10),
@@ -1706,7 +1980,7 @@ class _AccommodationFieldState extends State<_AccommodationField> {
             ),
             child: Row(
               children: [
-                const Icon(Icons.hotel, size: 18, color: _navyBlue),
+                const Icon(Icons.hotel, size: 20, color: _navyBlue),
                 const SizedBox(width: 8),
                 Expanded(
                   child: InkWell(
@@ -1734,24 +2008,17 @@ class _AccommodationFieldState extends State<_AccommodationField> {
                     ),
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.cancel, size: 18, color: AppColors.brandRed),
-                  onPressed: () {
-                    final updatedDay = ItineraryDay(
-                      dayNumber: widget.day.dayNumber,
-                      dayTitle: widget.day.dayTitle,
-                      accommodation: '',
-                      accommodationPlaceId: '',
-                      accommodationMapsUrl: '',
-                      activities: widget.day.activities,
-                      highlights: widget.day.highlights,
-                      routePins: widget.day.routePins,
-                      mealsIncluded: widget.day.mealsIncluded,
-                      transportInfo: widget.day.transportInfo,
-                      overnightStay: widget.day.overnightStay,
-                    );
-                    widget.onDayUpdated(updatedDay);
-                  },
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.delete_outline, size: 14, color: AppColors.brandRed),
+                  label: const Text('Remove Stay', style: TextStyle(fontSize: 11, color: AppColors.brandRed, fontWeight: FontWeight.bold)),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: AppColors.brandRed),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                  ),
+                  onPressed: () => _clearStay(),
                 ),
               ],
             ),
@@ -1762,8 +2029,8 @@ class _AccommodationFieldState extends State<_AccommodationField> {
             controller: _searchController,
             style: const TextStyle(fontSize: 13, color: AppColors.textMain),
             decoration: InputDecoration(
-              hintText: 'Search hotel / accommodation...',
-              hintStyle: const TextStyle(color: Colors.black26, fontSize: 12),
+              hintText: 'Search hotel / resort / homestay on Google...',
+              hintStyle: const TextStyle(color: Colors.black38, fontSize: 12),
               prefixIcon: const Icon(Icons.search, color: _navyBlue, size: 18),
               suffixIcon: _isLoading
                   ? const Padding(
@@ -1802,12 +2069,26 @@ class _AccommodationFieldState extends State<_AccommodationField> {
               ),
             ),
           ],
+          const SizedBox(height: 6),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Expanded(
+                child: Text(
+                  '💡 Pick hotel to pin on map or skip if not needed.',
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 11, fontStyle: FontStyle.italic),
+                ),
+              ),
+              InkWell(
+                onTap: () => _clearStay(setAsDayTrip: true),
+                child: Text(
+                  'Mark as Day Trip ☀️',
+                  style: TextStyle(fontSize: 11, color: Colors.orange.shade800, fontWeight: FontWeight.bold, decoration: TextDecoration.underline),
+                ),
+              ),
+            ],
+          ),
         ],
-        const SizedBox(height: 4),
-        const Text(
-          'Selected accommodation will be pinned on the interactive map & shown with map link.',
-          style: TextStyle(color: AppColors.textMuted, fontSize: 11, fontStyle: FontStyle.italic),
-        ),
       ],
     );
   }
@@ -1870,7 +2151,7 @@ class _PlaceSearchFieldState extends State<_PlaceSearchField> {
       for (final apiKey in keys) {
         try {
           final url = Uri.parse(
-            'https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${Uri.encodeComponent(query)}&components=country:in&key=$apiKey',
+            'https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${Uri.encodeComponent(query)}&key=$apiKey',
           );
           final response = await http.get(url);
           if (response.statusCode == 200) {

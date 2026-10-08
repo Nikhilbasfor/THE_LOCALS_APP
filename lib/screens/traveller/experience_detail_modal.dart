@@ -439,14 +439,16 @@ class _ExperienceDetailModalState extends State<ExperienceDetailModal> {
                           const SizedBox(height: 8),
                           OutlinedButton.icon(
                             onPressed: () async {
-                              final query = Uri.encodeComponent(exp.meetingPoint);
-                              final url = Uri.parse('https://www.google.com/maps/search/?api=1&query=$query');
+                              final urlStr = exp.meetingPointMapsUrl.isNotEmpty
+                                  ? exp.meetingPointMapsUrl
+                                  : 'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(exp.meetingPoint)}';
+                              final url = Uri.parse(urlStr);
                               if (await canLaunchUrl(url)) {
                                 await launchUrl(url, mode: LaunchMode.externalApplication);
                               }
                             },
-                            icon: const Icon(Icons.map, size: 15, color: AppColors.travellerForestDark),
-                            label: const Text('Open in Google Maps', style: TextStyle(fontSize: 12, color: AppColors.travellerForestDark, fontWeight: FontWeight.w600)),
+                            icon: const Icon(Icons.directions, size: 16, color: AppColors.travellerForestDark),
+                            label: const Text('Directions / Open in Maps 🗺️', style: TextStyle(fontSize: 12, color: AppColors.travellerForestDark, fontWeight: FontWeight.bold)),
                             style: OutlinedButton.styleFrom(
                               side: const BorderSide(color: AppColors.travellerForestDark),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -481,6 +483,34 @@ class _ExperienceDetailModalState extends State<ExperienceDetailModal> {
                     ),
                   ),
                   const SizedBox(height: 22),
+
+                  // Terms & Conditions
+                  if (exp.termsAndConditions.isNotEmpty) ...[
+                    const Text('Terms & Conditions', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.travellerForestDark)),
+                    const SizedBox(height: 10),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: AppColors.cardBorder.withValues(alpha: 0.6)),
+                      ),
+                      padding: const EdgeInsets.all(14.0),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.gavel, size: 18, color: AppColors.travellerForestDark),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              exp.termsAndConditions,
+                              style: const TextStyle(fontSize: 12, height: 1.5, color: AppColors.textMain),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 22),
+                  ],
 
                   // Reviews Section
                   const Text('Traveller Reviews', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.travellerForestDark)),
@@ -637,13 +667,48 @@ class _ExperienceDetailModalState extends State<ExperienceDetailModal> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (day.accommodation.isNotEmpty) ...[
-                    Row(
-                      children: [
-                        const Icon(Icons.hotel, size: 14, color: AppColors.textMuted),
-                        const SizedBox(width: 6),
-                        Text('Stay: ${day.accommodation}', style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
-                      ],
+                  if (!day.hasOvernightStay) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF8E1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.wb_sunny_outlined, size: 13, color: Color(0xFFE65100)),
+                          SizedBox(width: 4),
+                          Text('Day Trip / In-Transit (No Stay)', style: TextStyle(fontSize: 11, color: Color(0xFFE65100), fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                  ] else if (day.accommodation.isNotEmpty) ...[
+                    InkWell(
+                      onTap: () async {
+                        final urlStr = day.accommodationMapsUrl.isNotEmpty
+                            ? day.accommodationMapsUrl
+                            : 'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(day.accommodation)}';
+                        final uri = Uri.parse(urlStr);
+                        if (await canLaunchUrl(uri)) {
+                          await launchUrl(uri, mode: LaunchMode.externalApplication);
+                        }
+                      },
+                      child: Row(
+                        children: [
+                          const Icon(Icons.hotel, size: 14, color: AppColors.headerNavy),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              'Stay: ${day.accommodation}',
+                              style: const TextStyle(fontSize: 12, color: AppColors.headerNavy, fontWeight: FontWeight.bold),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const Icon(Icons.open_in_new, size: 12, color: AppColors.headerNavy),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 6),
                   ],
