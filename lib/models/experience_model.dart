@@ -187,6 +187,7 @@ class ExperienceModel {
   final String guidePhone;
   final double guideRating;
   final int guideExperienceYears;
+  final String country;
   final String state;
   final String city;
   final String category;
@@ -203,6 +204,8 @@ class ExperienceModel {
   final String tripType;
   final String emergencyContactInfo;
   final String bestSeason;
+  final String pdfUrl;
+  final String pdfName;
   final List<String> thingsToCarry;
   final List<String> tags;
   final List<String> images;
@@ -223,6 +226,7 @@ class ExperienceModel {
     this.guidePhone = '',
     this.guideRating = 0.0,
     this.guideExperienceYears = 0,
+    this.country = 'India',
     this.state = '',
     this.city = '',
     this.category = '',
@@ -239,6 +243,8 @@ class ExperienceModel {
     this.tripType = '',
     this.emergencyContactInfo = '',
     this.bestSeason = '',
+    this.pdfUrl = '',
+    this.pdfName = '',
     this.thingsToCarry = const [],
     this.tags = const [],
     this.images = const [],
@@ -325,6 +331,7 @@ class ExperienceModel {
       guidePhone: map['guidePhone'] ?? map['phone'] ?? '',
       guideRating: (map['guideRating'] as num?)?.toDouble() ?? (map['rating'] as num?)?.toDouble() ?? 0.0,
       guideExperienceYears: (map['guideExperienceYears'] as num?)?.toInt() ?? 0,
+      country: map['country'] ?? 'India',
       state: map['state'] ?? '',
       city: map['city'] ?? map['location'] ?? '',
       category: map['category'] ?? map['type'] ?? 'Trekking',
@@ -341,6 +348,8 @@ class ExperienceModel {
       tripType: map['tripType'] ?? map['tripMode'] ?? '',
       emergencyContactInfo: map['emergencyContactInfo'] ?? '',
       bestSeason: map['bestSeason'] ?? '',
+      pdfUrl: map['pdfUrl'] ?? map['itineraryPdfUrl'] ?? map['pdf'] ?? '',
+      pdfName: map['pdfName'] ?? map['itineraryPdfName'] ?? '',
       thingsToCarry: (map['thingsToCarry'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
       tags: (map['tags'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
       images: resolvedImages,
@@ -365,6 +374,7 @@ class ExperienceModel {
       'guidePhone': guidePhone,
       'guideRating': guideRating,
       'guideExperienceYears': guideExperienceYears,
+      'country': country,
       'state': state,
       'city': city,
       'category': category,
@@ -381,6 +391,8 @@ class ExperienceModel {
       'tripType': tripType,
       'emergencyContactInfo': emergencyContactInfo,
       'bestSeason': bestSeason,
+      'pdfUrl': pdfUrl,
+      'pdfName': pdfName,
       'thingsToCarry': thingsToCarry,
       'tags': tags,
       'images': images,

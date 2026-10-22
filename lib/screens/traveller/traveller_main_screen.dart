@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/spring_interactions.dart';
-import 'traveller_dashboard_tab.dart';
 import 'explore_home_screen.dart';
 import 'traveller_bookings_tab.dart';
 import 'traveller_profile_tab.dart';
@@ -27,14 +26,8 @@ class _TravellerMainScreenState extends State<TravellerMainScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Explore is the primary homepage; dashboard tab is removed as requested.
     final List<Widget> pages = [
-      TravellerDashboardTab(
-        onNavigateTab: (targetIdx) {
-          setState(() {
-            _currentIdx = targetIdx;
-          });
-        },
-      ),
       const ExploreHomeScreen(),
       TravellerBookingsTab(),
       TravellerProfileTab(),
@@ -79,11 +72,6 @@ class _TravellerMainScreenState extends State<TravellerMainScreen> {
           },
           items: [
             BottomNavigationBarItem(
-              icon: const Icon(Icons.dashboard_outlined),
-              activeIcon: const Icon(Icons.dashboard).springPop(),
-              label: 'Dashboard',
-            ),
-            BottomNavigationBarItem(
               icon: const Icon(Icons.explore_outlined),
               activeIcon: const Icon(Icons.explore).springPop(),
               label: 'Explore',
@@ -104,4 +92,3 @@ class _TravellerMainScreenState extends State<TravellerMainScreen> {
     );
   }
 }
-

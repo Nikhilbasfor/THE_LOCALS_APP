@@ -28,28 +28,43 @@ class _GuideMainScreenState extends State<GuideMainScreen> {
     final user = _authRepo.currentUser;
     final uid = user?.uid ?? '';
 
-    final List<Widget> tabs = [
-      GuideDashboardTab(
-        onNavigateToTab: (idx) {
-          setState(() => _currentIdx = idx);
-        },
-      ),
-      const GuideExperiencesTab(),
-      const GuideBookingsTab(),
-      GuideProfileTab(
-        onNavigateToTab: (idx) {
-          setState(() => _currentIdx = idx);
-        },
-      ),
-    ];
-
     return StreamBuilder<UserModel?>(
       stream: _authRepo.getUserStream(uid),
       builder: (context, userSnapshot) {
+        if (userSnapshot.connectionState == ConnectionState.waiting && userSnapshot.data == null) {
+          return const Scaffold(
+            backgroundColor: AppColors.bgLight,
+            body: Center(
+              child: CircularProgressIndicator(color: AppColors.headerNavy),
+            ),
+          );
+        }
+
         final userModel = userSnapshot.data;
-        final isVerified = userModel?.verified ?? true; // Default true if stream loading to prevent flash
-        final rejectionReason = userModel?.rejectionReason;
-        final isRevoked = userModel != null && !isVerified;
+
+        // Requirement 14: Keep host content locked until admin approves
+        // If guide is not approved yet, show the Document Under Review page directly
+        if (userModel != null && !userModel.verified) {
+          return GuideOnboardingScreen(
+            initialUser: userModel,
+            initialStep: 5,
+          );
+        }
+
+        final List<Widget> tabs = [
+          GuideDashboardTab(
+            onNavigateToTab: (idx) {
+              setState(() => _currentIdx = idx);
+            },
+          ),
+          const GuideExperiencesTab(),
+          const GuideBookingsTab(),
+          GuideProfileTab(
+            onNavigateToTab: (idx) {
+              setState(() => _currentIdx = idx);
+            },
+          ),
+        ];
 
         return Scaffold(
           backgroundColor: AppColors.bgLight,
@@ -101,89 +116,9 @@ class _GuideMainScreenState extends State<GuideMainScreen> {
               ),
             ],
           ),
-          body: Column(
-            children: [
-              // REAL-TIME ADMIN REVOCATION ALERT BANNER
-              if (isRevoked)
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFEF2F2),
-                    border: Border(bottom: BorderSide(color: AppColors.brandRed.withValues(alpha: 0.3), width: 1)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(Icons.gavel_rounded, color: AppColors.brandRed, size: 22),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: const [
-                                Text(
-                                  'APPROVAL REVOKED / REVISION REQUIRED',
-                                  style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.brandRed, fontSize: 12, letterSpacing: 0.5),
-                                ),
-                                SizedBox(height: 2),
-                                Text(
-                                  'Admin has paused your approval until requirements are updated.',
-                                  style: TextStyle(fontSize: 11, color: AppColors.textMuted),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.brandRed,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                            ),
-                            icon: const Icon(Icons.edit, size: 14),
-                            label: const Text('Click to Edit', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                            onPressed: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => GuideOnboardingScreen(
-                                    initialUser: userModel,
-                                    initialStep: 1,
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        ],
-                      ),
-                      if (rejectionReason != null && rejectionReason.isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: AppColors.brandRed.withValues(alpha: 0.2)),
-                          ),
-                          child: Text(
-                            'Admin Feedback: $rejectionReason',
-                            style: const TextStyle(fontSize: 12, color: AppColors.textMain, fontStyle: FontStyle.italic),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              Expanded(
-                child: IndexedStack(
-                  index: _currentIdx,
-                  children: tabs,
-                ),
-              ),
-            ],
+          body: IndexedStack(
+            index: _currentIdx,
+            children: tabs,
           ),
           bottomNavigationBar: Container(
             decoration: BoxDecoration(

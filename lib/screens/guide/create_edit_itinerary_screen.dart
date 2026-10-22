@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../models/experience_model.dart';
@@ -24,14 +24,22 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
   final ExperienceRepository _expRepo = ExperienceRepository();
   final AuthRepository _authRepo = AuthRepository();
 
-  // 3-Step Wizard: 0 = Basics & Media, 1 = Itinerary & Map, 2 = Logistics & Publish
+  // 3-Step Wizard:
+  // 0 = Basics & Photos
+  // 1 = Day-by-Day Plan (Activities, Stays, Inclusions)
+  // 2 = PDF Brochure & Logistics
   int _currentStep = 0;
   bool _isSaving = false;
   bool _isUploadingImage = false;
+  bool _isUploadingPdf = false;
+  String _pdfUrl = '';
+  String _pdfName = '';
 
   // Form Controllers
   final _titleController = TextEditingController();
   final _descController = TextEditingController();
+  final _countryController = TextEditingController(text: 'India');
+  final _stateController = TextEditingController();
   final _cityController = TextEditingController();
   final _priceController = TextEditingController();
   final _meetingPointController = TextEditingController();
@@ -41,14 +49,11 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
   final _permitsRequiredController = TextEditingController();
 
   final _imageUrlInputController = TextEditingController();
+  final _pdfUrlInputController = TextEditingController();
   final _packingInputController = TextEditingController();
   final _inclusionInputController = TextEditingController();
   final _exclusionInputController = TextEditingController();
-  final _routePinSearchController = TextEditingController();
 
-  static const String _googleApiKey = "AIzaSyCT8GU_dkAkoLlxhkb9TFc0vQasOHeAFxA";
-
-  String _selectedState = 'Uttarakhand';
   String _selectedCategory = 'Trekking';
   String _selectedFitnessLevel = 'Moderate';
   String _selectedBestSeason = 'Spring & Autumn';
@@ -62,110 +67,8 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
   List<String> _exclusions = [];
   List<ItineraryDay> _days = [];
 
-  // Google Maps Pins
+  // Route Pins (preserved from existing itineraries)
   final List<RoutePin> _routePins = [];
-  GoogleMapController? _mapController;
-
-  Future<LatLng?> _fetchPlaceDetailsByPlaceId(String placeId) async {
-    if (placeId.isEmpty) return null;
-    final keys = [
-      _googleApiKey,
-      "AIzaSyBDNeSC26NH00lIuxZQA_GaBDXcicywdM4",
-    ];
-    for (final apiKey in keys) {
-      try {
-        final url = Uri.parse(
-          'https://maps.googleapis.com/maps/api/place/details/json?place_id=$placeId&key=$apiKey',
-        );
-        final response = await http.get(url);
-        if (response.statusCode == 200) {
-          final data = jsonDecode(response.body);
-          if (data['status'] == 'OK' && data['result']?['geometry']?['location'] != null) {
-            final loc = data['result']['geometry']['location'];
-            final lat = (loc['lat'] as num).toDouble();
-            final lng = (loc['lng'] as num).toDouble();
-            return LatLng(lat, lng);
-          }
-        }
-      } catch (e) {
-        debugPrint('Error fetching place details by id: $e');
-      }
-    }
-    return null;
-  }
-
-  Future<void> _addRoutePinFromPlaceMap(Map<String, String> item) async {
-    final placeId = item['placeId'] ?? '';
-    final placeName = item['fullDescription'] ?? item['name'] ?? 'Stop Location';
-
-    LatLng? latLng;
-    if (placeId.isNotEmpty) {
-      latLng = await _fetchPlaceDetailsByPlaceId(placeId);
-    }
-
-    if (latLng == null) return;
-
-    final newPin = RoutePin(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      name: placeName,
-      type: _routePins.isEmpty ? 'start' : 'stop',
-      lat: latLng.latitude,
-      lng: latLng.longitude,
-      placeId: placeId,
-      googleMapsUrl: 'https://maps.google.com/?q=${latLng.latitude},${latLng.longitude}&query_place_id=$placeId',
-    );
-
-    setState(() {
-      _routePins.add(newPin);
-      _routePinSearchController.clear();
-    });
-
-    _mapController?.animateCamera(
-      CameraUpdate.newLatLngZoom(latLng, 13),
-    );
-  }
-
-  static const List<String> indianStates = [
-    'Nepal',
-    'Bhutan',
-    'Tibet',
-    'Himachal Pradesh',
-    'Uttarakhand',
-    'Jammu & Kashmir',
-    'Ladakh',
-    'Sikkim',
-    'Arunachal Pradesh',
-    'Assam',
-    'Meghalaya',
-    'Nagaland',
-    'Manipur',
-    'Mizoram',
-    'Tripura',
-    'West Bengal',
-    'Andhra Pradesh',
-    'Bihar',
-    'Chhattisgarh',
-    'Goa',
-    'Gujarat',
-    'Haryana',
-    'Jharkhand',
-    'Karnataka',
-    'Kerala',
-    'Madhya Pradesh',
-    'Maharashtra',
-    'Odisha',
-    'Punjab',
-    'Rajasthan',
-    'Tamil Nadu',
-    'Telangana',
-    'Uttar Pradesh',
-    'Andaman & Nicobar Islands',
-    'Chandigarh',
-    'Dadra & Nagar Haveli & Daman & Diu',
-    'Delhi (NCT)',
-    'Lakshadweep',
-    'Puducherry',
-  ];
 
   static const List<String> categories = [
     'Trekking',
@@ -175,6 +78,82 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
     'Spiritual',
     'Culinary',
     'Wildlife',
+  ];
+
+  static const List<String> allCountries = [
+    'India',
+    'Nepal',
+    'Bhutan',
+    'Sri Lanka',
+    'Thailand',
+    'Indonesia',
+    'Vietnam',
+    'Japan',
+    'United Arab Emirates',
+    'Georgia',
+    'Turkey',
+    'Switzerland',
+    'United Kingdom',
+    'United States',
+    'Canada',
+    'Australia',
+    'New Zealand',
+    'Kenya',
+    'Tanzania',
+    'Iceland',
+    'Norway',
+    'Peru',
+    'Maldives',
+    'Malaysia',
+    'Singapore',
+  ];
+
+  static const List<String> allStatesAndRegions = [
+    // 28 Indian States
+    'Andhra Pradesh',
+    'Arunachal Pradesh',
+    'Assam',
+    'Bihar',
+    'Chhattisgarh',
+    'Goa',
+    'Gujarat',
+    'Haryana',
+    'Himachal Pradesh',
+    'Jharkhand',
+    'Karnataka',
+    'Kerala',
+    'Madhya Pradesh',
+    'Maharashtra',
+    'Manipur',
+    'Meghalaya',
+    'Mizoram',
+    'Nagaland',
+    'Odisha',
+    'Punjab',
+    'Rajasthan',
+    'Sikkim',
+    'Tamil Nadu',
+    'Telangana',
+    'Tripura',
+    'Uttar Pradesh',
+    'Uttarakhand',
+    'West Bengal',
+    // 8 Union Territories
+    'Andaman and Nicobar Islands',
+    'Chandigarh',
+    'Dadra and Nagar Haveli and Daman and Diu',
+    'Delhi (NCT)',
+    'Jammu and Kashmir',
+    'Ladakh',
+    'Lakshadweep',
+    'Puducherry',
+    // Popular Trekking & Expedition Regions
+    'Bagmati (Nepal)',
+    'Gandaki / Pokhara (Nepal)',
+    'Karnali (Nepal)',
+    'Everest Region / Khumbu (Nepal)',
+    'Annapurna Region (Nepal)',
+    'Thimphu / Paro (Bhutan)',
   ];
 
   static const List<String> fitnessLevels = [
@@ -205,7 +184,9 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
       final exp = widget.experience!;
       _titleController.text = exp.title;
       _descController.text = exp.description;
+      _countryController.text = exp.country.isNotEmpty ? exp.country : 'India';
       _cityController.text = exp.city;
+      _stateController.text = exp.state;
       _priceController.text = exp.price > 0 ? exp.price.toInt().toString() : '';
       _meetingPointController.text = exp.meetingPoint;
       _meetingPointMapsUrlController.text = exp.meetingPointMapsUrl;
@@ -213,7 +194,6 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
       _termsAndConditionsController.text = exp.termsAndConditions;
       _permitsRequiredController.text = exp.permitsRequired;
 
-      _selectedState = indianStates.contains(exp.state) ? exp.state : 'Uttarakhand';
       _selectedCategory = exp.category.isNotEmpty ? exp.category : 'Trekking';
       _selectedFitnessLevel = exp.fitnessLevel.isNotEmpty ? exp.fitnessLevel : 'Moderate';
       _selectedBestSeason = exp.bestSeason.isNotEmpty ? exp.bestSeason : 'Spring & Autumn';
@@ -222,6 +202,11 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
       _maxGroupSize = exp.maxGroupSize > 0 ? exp.maxGroupSize : 10;
 
       _galleryImages = List.from(exp.images);
+      _pdfUrl = exp.pdfUrl;
+      _pdfName = exp.pdfName;
+      if (_pdfName.isEmpty && _pdfUrl.isNotEmpty) {
+        _pdfName = 'Itinerary_Document.pdf';
+      }
       _thingsToCarry = List.from(exp.thingsToCarry);
       _inclusions = List.from(exp.inclusions);
       _exclusions = List.from(exp.exclusions);
@@ -233,61 +218,232 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
       _days = [
         ItineraryDay(
           dayNumber: 1,
-          dayTitle: '',
-          accommodation: '',
+          dayTitle: 'Arrival & Expedition Briefing',
+          accommodation: 'Local Homestay / Eco Lodge',
           accommodationMapsUrl: '',
-          activities: [],
+          mealsIncluded: const ['Dinner'],
+          transportInfo: 'Pickup from hub',
+          activities: [
+            TimelineItem(
+              time: '02:00 PM',
+              activityTitle: 'Welcome, Orientation & Route Briefing',
+              location: 'Base Camp',
+              description: 'Meet your local host, inspect equipment, and review safety guidelines.',
+            ),
+          ],
         ),
+      ];
+      _inclusions = [
+        'Certified local host and trail safety guides',
+        'All homestay / camp accommodations',
+        'Traditional meals and mountain tea',
+        'Inner Line Permits and forest passes',
+      ];
+      _exclusions = [
+        'Personal trekking gear and backpack',
+        'Personal travel & medical insurance',
+        'Entry tickets and personal emergency expenses',
+      ];
+      _thingsToCarry = [
+        'Sturdy trekking boots with ankle support',
+        'Warm fleece jacket & rain poncho',
+        'Headlamp / flashlight with batteries',
+        'Reusable 1L water bottle',
+        'Personal medication & first-aid',
+        'Valid Government ID proof',
       ];
       _durationDays = 1;
       _durationNights = 0;
     }
   }
 
-  void _addNextDay() {
+  // ---------------------------------------------------------------------------
+  // DAY OPERATIONS
+  // ---------------------------------------------------------------------------
+  ItineraryDay _copyDay(
+    ItineraryDay day, {
+    int? dayNumber,
+    String? title,
+    String? accommodation,
+    String? accommodationPlaceId,
+    String? accommodationMapsUrl,
+    List<String>? mealsIncluded,
+    String? transportInfo,
+    String? overnightStay,
+    List<TimelineItem>? activities,
+    List<String>? highlights,
+    List<RoutePin>? routePins,
+  }) {
+    return ItineraryDay(
+      dayNumber: dayNumber ?? day.dayNumber,
+      dayTitle: title ?? day.dayTitle,
+      accommodation: accommodation ?? day.accommodation,
+      accommodationPlaceId: accommodationPlaceId ?? day.accommodationPlaceId,
+      accommodationMapsUrl: accommodationMapsUrl ?? day.accommodationMapsUrl,
+      mealsIncluded: mealsIncluded ?? day.mealsIncluded,
+      transportInfo: transportInfo ?? day.transportInfo,
+      overnightStay: overnightStay ?? day.overnightStay,
+      hasOvernightStay: day.hasOvernightStay,
+      activities: activities ?? day.activities,
+      highlights: highlights ?? day.highlights,
+      routePins: routePins ?? day.routePins,
+    );
+  }
+
+  void _addDay() {
     setState(() {
-      final nextNum = _days.length + 1;
+      final nextDayNum = _days.length + 1;
       _days.add(
         ItineraryDay(
-          dayNumber: nextNum,
-          dayTitle: '',
-          accommodation: '',
+          dayNumber: nextDayNum,
+          dayTitle: 'Expedition Day $nextDayNum',
+          accommodation: 'Homestay / Alpine Tents',
           accommodationMapsUrl: '',
-          activities: [],
+          mealsIncluded: const ['Breakfast', 'Dinner'],
+          transportInfo: 'Trek on foot',
+          activities: [
+            TimelineItem(
+              time: '08:00 AM',
+              activityTitle: 'Morning Exploration',
+              location: 'Trailhead',
+              description: 'Begin daily trek and cultural discovery with local guide.',
+            ),
+          ],
         ),
       );
-      _durationDays = _days.length;
-      if (_durationNights < _durationDays - 1) {
-        _durationNights = _durationDays - 1;
+      if (_durationDays < nextDayNum) {
+        _durationDays = nextDayNum;
       }
     });
   }
 
-  void _removeDay(int index) {
+  void _removeDay(int idx) {
     if (_days.length <= 1) return;
     setState(() {
-      _days.removeAt(index);
-      // Re-index remaining days
+      _days.removeAt(idx);
+      // Renumber remaining days
       for (int i = 0; i < _days.length; i++) {
-        final d = _days[i];
-        _days[i] = ItineraryDay(
-          dayNumber: i + 1,
-          dayTitle: d.dayTitle,
-          accommodation: d.accommodation,
-          accommodationPlaceId: d.accommodationPlaceId,
-          accommodationMapsUrl: d.accommodationMapsUrl,
-          activities: d.activities,
-          highlights: d.highlights,
-          routePins: d.routePins,
-        );
+        _days[i] = _copyDay(_days[i], dayNumber: i + 1);
       }
-      _durationDays = _days.length;
-      if (_durationNights >= _durationDays) {
-        _durationNights = _durationDays > 0 ? _durationDays - 1 : 0;
+      if (_durationDays > _days.length) {
+        _durationDays = _days.length;
       }
     });
   }
 
+  void _toggleDayMeal(int dayIdx, String meal) {
+    final day = _days[dayIdx];
+    final currentMeals = List<String>.from(day.mealsIncluded);
+    if (currentMeals.contains(meal)) {
+      currentMeals.remove(meal);
+    } else {
+      currentMeals.add(meal);
+    }
+    setState(() {
+      _days[dayIdx] = _copyDay(day, mealsIncluded: currentMeals);
+    });
+  }
+
+  void _addActivityToDay(int dayIdx) {
+    final day = _days[dayIdx];
+    final currentActivities = List<TimelineItem>.from(day.activities);
+    currentActivities.add(
+      TimelineItem(
+        time: '12:00 PM',
+        activityTitle: '',
+        location: '',
+        description: '',
+      ),
+    );
+    setState(() {
+      _days[dayIdx] = _copyDay(day, activities: currentActivities);
+    });
+  }
+
+  void _removeActivityFromDay(int dayIdx, int actIdx) {
+    final day = _days[dayIdx];
+    final currentActivities = List<TimelineItem>.from(day.activities);
+    if (actIdx < currentActivities.length) {
+      currentActivities.removeAt(actIdx);
+      setState(() {
+        _days[dayIdx] = _copyDay(day, activities: currentActivities);
+      });
+    }
+  }
+
+  void _updateActivityField(
+    int dayIdx,
+    int actIdx, {
+    String? time,
+    String? title,
+    String? location,
+    String? desc,
+  }) {
+    final day = _days[dayIdx];
+    final currentActivities = List<TimelineItem>.from(day.activities);
+    if (actIdx >= currentActivities.length) return;
+    final act = currentActivities[actIdx];
+    currentActivities[actIdx] = TimelineItem(
+      time: time ?? act.time,
+      activityTitle: title ?? act.activityTitle,
+      location: location ?? act.location,
+      description: desc ?? act.description,
+      imageUrl: act.imageUrl,
+      highlight: act.highlight,
+      subtext: act.subtext,
+      instruction: act.instruction,
+    );
+    setState(() {
+      _days[dayIdx] = _copyDay(day, activities: currentActivities);
+    });
+  }
+
+  Future<void> _selectActivityTime(int dayIdx, int actIdx) async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.now(),
+    );
+    if (!mounted || picked == null) return;
+    final formatted = picked.format(context);
+    _updateActivityField(dayIdx, actIdx, time: formatted);
+  }
+
+  // ---------------------------------------------------------------------------
+  // INCLUSIONS & EXCLUSIONS & THINGS TO CARRY
+  // ---------------------------------------------------------------------------
+  void _addInclusion() {
+    final text = _inclusionInputController.text.trim();
+    if (text.isNotEmpty) {
+      setState(() {
+        _inclusions.add(text);
+        _inclusionInputController.clear();
+      });
+    }
+  }
+
+  void _addExclusion() {
+    final text = _exclusionInputController.text.trim();
+    if (text.isNotEmpty) {
+      setState(() {
+        _exclusions.add(text);
+        _exclusionInputController.clear();
+      });
+    }
+  }
+
+  void _addThingToCarry() {
+    final text = _packingInputController.text.trim();
+    if (text.isNotEmpty) {
+      setState(() {
+        _thingsToCarry.add(text);
+        _packingInputController.clear();
+      });
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // IMAGE & PDF UPLOAD
+  // ---------------------------------------------------------------------------
   Future<void> _pickAndUploadImage() async {
     final picker = ImagePicker();
     final XFile? pickedFile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
@@ -316,7 +472,6 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
       }
     } catch (e) {
       if (mounted) {
-        // Fallback: use local path preview if Firebase Storage is unconfigured
         setState(() {
           _galleryImages.add(pickedFile.path);
         });
@@ -329,32 +484,165 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
     }
   }
 
-  void _onAccommodationSelectedOnMap(LatLng latLng, String placeName, String placeId) {
-    if (latLng.latitude == 0.0 && latLng.longitude == 0.0) return;
+  Future<void> _pickAndUploadPdf() async {
+    try {
+      final file = await FilePicker.pickFile(
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
+      );
+      if (file == null) return;
 
-    final cleanName = placeName.startsWith('🏨') ? placeName : '🏨 Lodging: $placeName';
+      final bytes = await file.xFile.readAsBytes();
 
-    final newPin = RoutePin(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      name: cleanName,
-      type: 'overnight',
-      lat: latLng.latitude,
-      lng: latLng.longitude,
-      placeId: placeId,
-      googleMapsUrl: 'https://maps.google.com/?q=${latLng.latitude},${latLng.longitude}&query_place_id=$placeId',
-    );
+      setState(() => _isUploadingPdf = true);
 
-    setState(() {
-      if (!_routePins.any((p) => (p.lat - latLng.latitude).abs() < 0.0001 && (p.lng - latLng.longitude).abs() < 0.0001)) {
-        _routePins.add(newPin);
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}_${file.name.replaceAll(RegExp(r'[^a-zA-Z0-9.-]'), '_')}';
+      final ref = FirebaseStorage.instance.ref().child('itineraries').child('pdfs').child(fileName);
+
+      final uploadTask = await ref.putData(
+        bytes,
+        SettableMetadata(contentType: 'application/pdf'),
+      );
+      final downloadUrl = await uploadTask.ref.getDownloadURL();
+
+      if (mounted) {
+        setState(() {
+          _pdfUrl = downloadUrl;
+          _pdfName = file.name;
+          _isUploadingPdf = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Itinerary PDF "${file.name}" uploaded successfully!'),
+            backgroundColor: AppColors.brandGreen,
+          ),
+        );
       }
-    });
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isUploadingPdf = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to upload PDF: $e'), backgroundColor: AppColors.brandRed),
+        );
+      }
+    }
+  }
 
-    _mapController?.animateCamera(
-      CameraUpdate.newLatLngZoom(latLng, 15),
+  void _showSamplePdfDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.picture_as_pdf, color: navyBlue, size: 22),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Sample Itinerary PDF Reference',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: navyBlue),
+              ),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Based on the 19-Page "Hornbill Festival & Nagaland Magic" Guide Brochure:',
+                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+                ),
+                const SizedBox(height: 12),
+                _buildSampleSectionCard(
+                  'Pages 1–9: Cover, Brief & Day-by-Day Flow',
+                  '• Cover: Dates, 6N/7D duration, Dimapur/Kohima pickup & drop, hosts @thelocals_exp.\n'
+                  '• Brief Itinerary: Day 1 Arrival to Day 7 Departure overview.\n'
+                  '• Detailed Plan: Day 1-7 activities, Dzukou Valley trek, Kohima War Memorial, Khonoma village, and overnight hotel/camp stays.',
+                ),
+                const SizedBox(height: 8),
+                _buildSampleSectionCard(
+                  'Page 10: Inclusions & Exclusions Checklist',
+                  '• Included: Tempo Traveller vehicle, 6-night stay, breakfasts, captains, local guides, sightseeing entry.\n'
+                  '• Excluded: Extra meals, personal insurance, festival passes (₹100-300), tips, emergency costs.',
+                ),
+                const SizedBox(height: 8),
+                _buildSampleSectionCard(
+                  'Page 11: Cost Per Person & Booking Terms',
+                  '• Double sharing: ₹52,999/- | Triple sharing: ₹48,999/-\n'
+                  '• Booking advance: ₹20,000/- per head, balance 15 days before trip.\n'
+                  '• Strict cancellation policy: Non-refundable for confirmed slots.',
+                ),
+                const SizedBox(height: 8),
+                _buildSampleSectionCard(
+                  'Pages 12–19: Packing List, Rules & FAQs',
+                  '• Things to Carry: Trek pants, fleece, thermals, rain poncho, headlamp, power banks.\n'
+                  '• Terms & Manners: Vehicle rules, no-litter policy, alcohol bans.\n'
+                  '• FAQs: Inner Line Permits (ILP), safety, mobile network, and ATM info.',
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close', style: TextStyle(fontWeight: FontWeight.bold, color: navyBlue)),
+          ),
+        ],
+      ),
     );
   }
 
+  Widget _buildSampleSectionCard(String title, String content) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: softPageBg,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.black12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: navyBlue)),
+          const SizedBox(height: 4),
+          Text(content, style: const TextStyle(fontSize: 11, color: AppColors.textMain, height: 1.35)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRequirementItem(String title, String desc) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.check_circle, size: 16, color: AppColors.brandGreen),
+          const SizedBox(width: 8),
+          Expanded(
+            child: RichText(
+              text: TextSpan(
+                style: const TextStyle(fontSize: 12, color: AppColors.textMain),
+                children: [
+                  TextSpan(text: '$title: ', style: const TextStyle(fontWeight: FontWeight.bold, color: navyBlue)),
+                  TextSpan(text: desc, style: const TextStyle(color: AppColors.textMuted)),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // SAVE & PUBLISH HANDLER
+  // ---------------------------------------------------------------------------
   Future<void> _handleSave() async {
     final user = _authRepo.currentUser;
     if (user == null) return;
@@ -364,6 +652,32 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
         const SnackBar(content: Text('Please enter journey title.'), backgroundColor: AppColors.brandRed),
       );
       return;
+    }
+
+    // Check if at least one format is provided (either PDF attached OR Day-by-Day schedule created)
+    final bool hasDays = _days.any((d) => d.dayTitle.trim().isNotEmpty || d.activities.isNotEmpty);
+    final bool hasPdf = _pdfUrl.isNotEmpty;
+
+    if (!hasDays && !hasPdf) {
+      final proceed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('No Itinerary Provided', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          content: const Text(
+            'You haven\'t created a Day-by-Day schedule or attached an Itinerary PDF brochure yet.\n\nWe recommend providing at least one format so travellers understand the expedition plan.\n\nDo you want to submit anyway?',
+            style: TextStyle(fontSize: 13),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Go Back')),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.brandGreen),
+              child: const Text('Submit Anyway', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      );
+      if (proceed != true) return;
     }
 
     setState(() => _isSaving = true);
@@ -379,6 +693,9 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
           accommodation: firstDay.accommodation,
           accommodationPlaceId: firstDay.accommodationPlaceId,
           accommodationMapsUrl: firstDay.accommodationMapsUrl,
+          mealsIncluded: firstDay.mealsIncluded,
+          transportInfo: firstDay.transportInfo,
+          overnightStay: firstDay.overnightStay,
           activities: firstDay.activities,
           highlights: firstDay.highlights,
           routePins: List.from(_routePins),
@@ -393,12 +710,13 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
         guideName: profile?.name ?? 'Local Guide',
         guidePhone: profile?.phone ?? '',
         guideExperienceYears: profile?.experienceYears ?? 2,
-        state: _selectedState,
+        country: _countryController.text.trim().isNotEmpty ? _countryController.text.trim() : 'India',
+        state: _stateController.text.trim(),
         city: _cityController.text.trim(),
         category: _selectedCategory,
         fitnessLevel: _selectedFitnessLevel,
         bestSeason: _selectedBestSeason,
-        price: double.tryParse(_priceController.text) ?? 1500.0,
+        price: double.tryParse(_priceController.text) ?? 0.0,
         durationDays: _durationDays,
         durationNights: _durationNights,
         maxGroupSize: _maxGroupSize,
@@ -407,6 +725,8 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
         cancellationPolicy: _cancellationPolicyController.text.trim(),
         termsAndConditions: _termsAndConditionsController.text.trim(),
         permitsRequired: _permitsRequiredController.text.trim(),
+        pdfUrl: _pdfUrl,
+        pdfName: _pdfName.isNotEmpty ? _pdfName : (_pdfUrl.isNotEmpty ? 'Itinerary_Document.pdf' : ''),
         images: _galleryImages,
         thingsToCarry: _thingsToCarry,
         inclusions: _inclusions,
@@ -444,6 +764,8 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
   void dispose() {
     _titleController.dispose();
     _descController.dispose();
+    _countryController.dispose();
+    _stateController.dispose();
     _cityController.dispose();
     _priceController.dispose();
     _meetingPointController.dispose();
@@ -452,42 +774,11 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
     _termsAndConditionsController.dispose();
     _permitsRequiredController.dispose();
     _imageUrlInputController.dispose();
+    _pdfUrlInputController.dispose();
     _packingInputController.dispose();
     _inclusionInputController.dispose();
     _exclusionInputController.dispose();
-    _routePinSearchController.dispose();
     super.dispose();
-  }
-
-  Future<void> _selectActivityTime(BuildContext context, int dayIdx, int actIdx) async {
-    final TimeOfDay? picked = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.now(),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: navyBlue,
-              onPrimary: Colors.white,
-              onSurface: navyBlue,
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-
-    if (picked != null) {
-      if (!context.mounted) return;
-      final formattedTime = picked.format(context);
-      setState(() {
-        final currentTitle = _days[dayIdx].activities[actIdx].activityTitle;
-        _days[dayIdx].activities[actIdx] = TimelineItem(
-          time: formattedTime,
-          activityTitle: currentTitle,
-        );
-      });
-    }
   }
 
   @override
@@ -529,14 +820,14 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
             // 3-Step Wizard Navigation Header Bar
             Container(
               color: navyBlue,
-              padding: const EdgeInsets.fromLTRB(12, 6, 12, 14),
+              padding: const EdgeInsets.fromLTRB(10, 6, 10, 14),
               child: Row(
                 children: [
-                  _buildStepTab(0, '1. Basics & Media', Icons.badge_outlined),
+                  _buildStepTab(0, '1. Basics & Photos', Icons.badge_outlined),
                   const SizedBox(width: 6),
-                  _buildStepTab(1, '2. Schedule & Map', Icons.map_outlined),
+                  _buildStepTab(1, '2. Day-by-Day Plan', Icons.calendar_month_outlined),
                   const SizedBox(width: 6),
-                  _buildStepTab(2, '3. Logistics & Submit', Icons.verified_outlined),
+                  _buildStepTab(2, '3. PDF & Logistics', Icons.picture_as_pdf_outlined),
                 ],
               ),
             ),
@@ -555,7 +846,7 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
               decoration: BoxDecoration(
                 color: Colors.white,
                 boxShadow: [
-                  BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 8, offset: const Offset(0, -2))
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 8, offset: const Offset(0, -2))
                 ],
               ),
               child: Row(
@@ -575,16 +866,28 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
                   else
                     const SizedBox(),
                   
-                  if (_currentStep < 2)
+                  if (_currentStep == 0)
                     ElevatedButton.icon(
-                      onPressed: () => setState(() => _currentStep++),
-                      icon: const Text('Next Step', style: TextStyle(fontWeight: FontWeight.bold)),
+                      onPressed: () => setState(() => _currentStep = 1),
+                      icon: const Text('Next: Day-by-Day Plan', style: TextStyle(fontWeight: FontWeight.bold)),
                       label: const Icon(Icons.arrow_forward_ios, size: 14),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: navyBlue,
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                      ),
+                    )
+                  else if (_currentStep == 1)
+                    ElevatedButton.icon(
+                      onPressed: () => setState(() => _currentStep = 2),
+                      icon: const Text('Next: PDF & Logistics', style: TextStyle(fontWeight: FontWeight.bold)),
+                      label: const Icon(Icons.arrow_forward_ios, size: 14),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: navyBlue,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                       ),
                     )
                   else
@@ -619,7 +922,7 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
         onTap: () => setState(() => _currentStep = stepIndex),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
           decoration: BoxDecoration(
             color: isActive ? cyanAccent : (isCompleted ? Colors.white24 : Colors.white10),
             borderRadius: BorderRadius.circular(8),
@@ -630,7 +933,7 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
             children: [
               Icon(
                 isCompleted ? Icons.check_circle : icon,
-                size: 16,
+                size: 15,
                 color: isActive ? navyBlue : Colors.white,
               ),
               const SizedBox(height: 3),
@@ -657,16 +960,16 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
       case 0:
         return _buildStep1BasicsAndMedia();
       case 1:
-        return _buildStep2ItineraryAndMap();
+        return _buildStep2DayByDayPlan();
       case 2:
-        return _buildStep3LogisticsAndPublish();
+        return _buildStep3PdfAndLogistics();
       default:
         return const SizedBox();
     }
   }
 
   // ---------------------------------------------------------------------------
-  // STEP 1: BASICS, PRICING & MEDIA (Decluttered & Overflow Fixed)
+  // STEP 1: BASICS, PRICING & MEDIA
   // ---------------------------------------------------------------------------
   Widget _buildStep1BasicsAndMedia() {
     return Column(
@@ -699,47 +1002,97 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: _buildDropdown<String>(
-                      label: 'State / Country / Region',
-                      value: _selectedState,
-                      icon: Icons.map,
-                      items: indianStates,
-                      onChanged: (val) => setState(() => _selectedState = val ?? _selectedState),
+                    child: _buildSearchablePickerField(
+                      label: 'Country',
+                      hint: 'e.g. India, Nepal, Bhutan',
+                      icon: Icons.public,
+                      controller: _countryController,
+                      options: allCountries,
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 14),
-              _PlaceSearchField(
-                key: const ValueKey('input_city'),
-                controller: _cityController,
-                label: 'City / Base Region',
-                hint: 'Search starting city... e.g. Manali, Pokhara, Leh, Gangtok',
-                icon: Icons.location_city,
-                onPlaceSelected: (item) {
-                  final pName = item['name'] ?? '';
-                  if (pName.isNotEmpty) {
-                    setState(() => _cityController.text = pName);
-                  }
-                },
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildSearchablePickerField(
+                      label: 'State / Region',
+                      hint: 'e.g. Uttarakhand, Himachal, Bagmati',
+                      icon: Icons.map_outlined,
+                      controller: _stateController,
+                      options: allStatesAndRegions,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _PlaceSearchField(
+                      key: const ValueKey('input_city'),
+                      controller: _cityController,
+                      label: 'City / Base Hub',
+                      hint: 'Search city... e.g. Manali, Pokhara, Leh',
+                      icon: Icons.location_city,
+                      onPlaceSelected: (item) {
+                        final pName = item['name'] ?? '';
+                        if (pName.isNotEmpty) {
+                          setState(() => _cityController.text = pName);
+                        }
+                      },
+                    ),
+                  ),
+                ],
               ),
               if (_cityController.text.isNotEmpty) ...[
-                const SizedBox(height: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: cyanLightBg,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: cyanAccent.withOpacity(0.5)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.pin_drop, size: 14, color: navyBlue),
-                      const SizedBox(width: 4),
-                      Text('Base Hub: ${_cityController.text}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: navyBlue)),
-                    ],
-                  ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: cyanLightBg,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: cyanAccent.withValues(alpha: 0.5)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.pin_drop, size: 14, color: navyBlue),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Base Hub: ${_cityController.text}',
+                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: navyBlue),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    InkWell(
+                      onTap: () async {
+                        final query = '${_cityController.text}, ${_stateController.text}, ${_countryController.text}'.trim();
+                        final uri = Uri.parse('https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(query)}');
+                        if (await canLaunchUrl(uri)) {
+                          await launchUrl(uri, mode: LaunchMode.externalApplication);
+                        }
+                      },
+                      borderRadius: BorderRadius.circular(6),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: navyBlue.withValues(alpha: 0.3)),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.map, size: 14, color: navyBlue),
+                            SizedBox(width: 4),
+                            Text('View on Google Maps 🗺️', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: navyBlue)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ],
@@ -753,7 +1106,6 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
             children: [
               _buildSectionHeader('Pricing, Duration & Difficulty', Icons.payments),
               const SizedBox(height: 14),
-              // NO OVERFLOW LAYOUT
               Row(
                 children: [
                   Expanded(
@@ -762,7 +1114,7 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
                       key: const ValueKey('input_price'),
                       controller: _priceController,
                       label: 'Price / Person (₹)',
-                      hint: '1500',
+                      hint: 'e.g. 5000',
                       icon: Icons.currency_rupee,
                       keyboardType: TextInputType.number,
                     ),
@@ -772,7 +1124,7 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
                     flex: 4,
                     child: DropdownButtonFormField<int>(
                       isExpanded: true,
-                      value: _durationDays,
+                      initialValue: _durationDays,
                       dropdownColor: Colors.white,
                       style: const TextStyle(color: AppColors.textMain, fontSize: 13),
                       decoration: InputDecoration(
@@ -789,9 +1141,15 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
                         if (val != null) {
                           setState(() {
                             _durationDays = val;
-                            // Adjust days list length to match dropdown
                             while (_days.length < val) {
-                              _days.add(ItineraryDay(dayNumber: _days.length + 1, dayTitle: '', accommodation: '', accommodationMapsUrl: '', activities: []));
+                              _days.add(ItineraryDay(
+                                dayNumber: _days.length + 1,
+                                dayTitle: 'Expedition Day ${_days.length + 1}',
+                                accommodation: 'Homestay / Alpine Tents',
+                                accommodationMapsUrl: '',
+                                mealsIncluded: const ['Breakfast', 'Dinner'],
+                                activities: [],
+                              ));
                             }
                             if (_days.length > val) {
                               _days = _days.sublist(0, val);
@@ -806,7 +1164,7 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
                     flex: 4,
                     child: DropdownButtonFormField<int>(
                       isExpanded: true,
-                      value: _durationNights,
+                      initialValue: _durationNights,
                       dropdownColor: Colors.white,
                       style: const TextStyle(color: AppColors.textMain, fontSize: 13),
                       decoration: InputDecoration(
@@ -859,19 +1217,18 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildSectionHeader('Overview & Gallery Photos', Icons.collections),
+              _buildSectionHeader('Overview Story & Photos', Icons.collections),
               const SizedBox(height: 14),
               _buildTextField(
                 key: const ValueKey('input_journey_desc'),
                 controller: _descController,
-                label: 'Itinerary Description',
+                label: 'Itinerary Story & Description',
                 hint: 'Describe the journey highlights, scenery, trail difficulty & culture...',
                 icon: Icons.description,
                 maxLines: 4,
               ),
               const SizedBox(height: 16),
               
-              // Upload Buttons: Storage Upload vs URL input
               const Text('Add Itinerary Photos:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: navyBlue)),
               const SizedBox(height: 8),
               Row(
@@ -993,16 +1350,75 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
   }
 
   // ---------------------------------------------------------------------------
-  // STEP 2: DAY SCHEDULE & INTERACTIVE ROUTE MAP (Clean Hint Inputs, Dynamic Days)
+  // STEP 2: DAY-BY-DAY PLAN, ACTIVITIES & INCLUSIONS
   // ---------------------------------------------------------------------------
-  Widget _buildStep2ItineraryAndMap() {
+  Widget _buildStep2DayByDayPlan() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionHeader('Day-by-Day Schedule', Icons.calendar_today),
-        const SizedBox(height: 6),
-        const Text('Add daily title, lodging & activity items. Start with Day 1 and add days as needed.', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
-        const SizedBox(height: 14),
+        // Helper Banner with "Skip to PDF" Option
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: cyanLightBg,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: cyanAccent.withValues(alpha: 0.5)),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.info_outline, color: navyBlue, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Day-by-Day Schedule Builder',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: navyBlue),
+                    ),
+                    const SizedBox(height: 2),
+                    const Text(
+                      'Add daily schedule, lodging, meals & activities. If you have a prepared PDF brochure, you can skip this step or do both!',
+                      style: TextStyle(fontSize: 11, color: AppColors.textMuted, height: 1.3),
+                    ),
+                    const SizedBox(height: 6),
+                    InkWell(
+                      onTap: () => setState(() => _currentStep = 2),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text('Skip to PDF Upload ➔', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: navyBlue)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Day Cards Header
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            _buildSectionHeader('Day-by-Day Itinerary (${_days.length} Days)', Icons.calendar_month),
+            ElevatedButton.icon(
+              onPressed: _addDay,
+              icon: const Icon(Icons.add, size: 16),
+              label: const Text('Add Day', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: navyBlue,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
 
         // List of Day Cards
         Column(
@@ -1012,19 +1428,26 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
               color: Colors.white,
               margin: const EdgeInsets.only(bottom: 16),
               elevation: 1,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: cyanAccent.withOpacity(0.4))),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(color: cyanAccent.withValues(alpha: 0.3)),
+              ),
               child: Padding(
                 padding: const EdgeInsets.all(14.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Day Title Header Row
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(color: navyBlue, borderRadius: BorderRadius.circular(6)),
-                          child: Text('DAY ${day.dayNumber}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                          child: Text(
+                            'DAY ${day.dayNumber}',
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                          ),
                         ),
                         if (_days.length > 1)
                           IconButton(
@@ -1043,7 +1466,9 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
                       icon: Icons.today,
                       onChanged: (val) => _days[idx] = _copyDay(day, title: val),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 12),
+
+                    // Accommodation / Lodging Field
                     _AccommodationField(
                       key: ValueKey('input_accommodation_day_${day.dayNumber}'),
                       day: day,
@@ -1052,7 +1477,27 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
                           _days[idx] = updatedDay;
                         });
                       },
-                      onLocationSelectedOnMap: _onAccommodationSelectedOnMap,
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Meals Included Multi-Select Chips
+                    const Text('Meals Included:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: navyBlue)),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: ['Breakfast', 'Lunch', 'Dinner', 'Evening Tea & Snacks'].map((meal) {
+                        final isSelected = day.mealsIncluded.contains(meal);
+                        return FilterChip(
+                          label: Text(meal, style: TextStyle(fontSize: 11, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: isSelected ? Colors.white : AppColors.textMain)),
+                          selected: isSelected,
+                          selectedColor: AppColors.brandGreen,
+                          backgroundColor: softPageBg,
+                          checkmarkColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                          onSelected: (_) => _toggleDayMeal(idx, meal),
+                        );
+                      }).toList(),
                     ),
                     const SizedBox(height: 14),
 
@@ -1060,16 +1505,20 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Activity Timeline:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: navyBlue)),
-                        Text('${day.activities.length} Slots', style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
+                        Text('Activity Timeline (${day.activities.length}):', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: navyBlue)),
+                        TextButton.icon(
+                          onPressed: () => _addActivityToDay(idx),
+                          icon: const Icon(Icons.add_circle_outline, size: 14, color: navyBlue),
+                          label: const Text('Add Activity', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: navyBlue)),
+                        ),
                       ],
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
                     if (day.activities.isEmpty)
                       Container(
-                        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
                         decoration: BoxDecoration(color: softPageBg, borderRadius: BorderRadius.circular(8)),
-                        child: const Text('No activity slots added yet. Tap button below to add activity timing.', style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
+                        child: const Text('No activity slots added yet. Tap "Add Activity" above.', style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
                       )
                     else
                       ListView.builder(
@@ -1078,73 +1527,104 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
                         itemCount: day.activities.length,
                         itemBuilder: (ctx, actIdx) {
                           final act = day.activities[actIdx];
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 8.0),
-                            child: Row(
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: softPageBg,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.black12),
+                            ),
+                            child: Column(
                               children: [
-                                InkWell(
-                                  onTap: () => _selectActivityTime(context, idx, actIdx),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                                    decoration: BoxDecoration(
-                                      color: cyanLightBg,
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(color: navyBlue.withOpacity(0.3)),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        const Icon(Icons.access_time_filled, size: 14, color: navyBlue),
-                                        const SizedBox(width: 6),
-                                        Text(
-                                          act.time.isNotEmpty ? act.time : 'Set Time ⏰',
-                                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: navyBlue),
+                                Row(
+                                  children: [
+                                    InkWell(
+                                      onTap: () => _selectActivityTime(idx, actIdx),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                        decoration: BoxDecoration(
+                                          color: cyanLightBg,
+                                          borderRadius: BorderRadius.circular(6),
+                                          border: Border.all(color: navyBlue.withValues(alpha: 0.3)),
                                         ),
-                                      ],
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Icon(Icons.access_time_filled, size: 13, color: navyBlue),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              act.time.isNotEmpty ? act.time : 'Set Time ⏰',
+                                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: navyBlue),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
                                     ),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: TextFormField(
-                                    key: ValueKey('input_activity_title_${day.dayNumber}_$actIdx'),
-                                    initialValue: act.activityTitle,
-                                    style: const TextStyle(fontSize: 12, color: AppColors.textMain),
-                                    decoration: InputDecoration(
-                                      hintText: 'Describe activity...',
-                                      contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
-                                      filled: true,
-                                      fillColor: Colors.white,
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: TextFormField(
+                                        initialValue: act.activityTitle,
+                                        style: const TextStyle(fontSize: 12, color: AppColors.textMain, fontWeight: FontWeight.bold),
+                                        decoration: const InputDecoration(
+                                          hintText: 'Activity title...',
+                                          isDense: true,
+                                          contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                          border: OutlineInputBorder(),
+                                          fillColor: Colors.white,
+                                          filled: true,
+                                        ),
+                                        onChanged: (val) => _updateActivityField(idx, actIdx, title: val),
+                                      ),
                                     ),
-                                    onChanged: (val) {
-                                      day.activities[actIdx] = TimelineItem(time: act.time, activityTitle: val);
-                                    },
-                                  ),
+                                    IconButton(
+                                      icon: const Icon(Icons.delete_outline, size: 16, color: AppColors.brandRed),
+                                      onPressed: () => _removeActivityFromDay(idx, actIdx),
+                                      tooltip: 'Remove',
+                                    ),
+                                  ],
                                 ),
-                                IconButton(
-                                  icon: const Icon(Icons.remove_circle_outline, color: AppColors.brandRed, size: 20),
-                                  onPressed: () {
-                                    setState(() {
-                                      day.activities.removeAt(actIdx);
-                                    });
-                                  },
+                                const SizedBox(height: 6),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: TextFormField(
+                                        initialValue: act.location,
+                                        style: const TextStyle(fontSize: 11, color: AppColors.textMain),
+                                        decoration: const InputDecoration(
+                                          hintText: 'Location / Spot',
+                                          isDense: true,
+                                          contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                          border: OutlineInputBorder(),
+                                          fillColor: Colors.white,
+                                          filled: true,
+                                        ),
+                                        onChanged: (val) => _updateActivityField(idx, actIdx, location: val),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Expanded(
+                                      child: TextFormField(
+                                        initialValue: act.description,
+                                        style: const TextStyle(fontSize: 11, color: AppColors.textMain),
+                                        decoration: const InputDecoration(
+                                          hintText: 'Brief description / instructions',
+                                          isDense: true,
+                                          contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                          border: OutlineInputBorder(),
+                                          fillColor: Colors.white,
+                                          filled: true,
+                                        ),
+                                        onChanged: (val) => _updateActivityField(idx, actIdx, desc: val),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
                           );
                         },
                       ),
-                    const SizedBox(height: 6),
-                    TextButton.icon(
-                      icon: const Icon(Icons.add_circle_outline, size: 16, color: navyBlue),
-                      label: const Text('Add Activity Slot', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: navyBlue)),
-                      onPressed: () {
-                        setState(() {
-                          day.activities.add(TimelineItem(time: '09:00 AM', activityTitle: ''));
-                        });
-                      },
-                    ),
                   ],
                 ),
               ),
@@ -1152,218 +1632,387 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
           }),
         ),
 
-        // Add Day Button
-        OutlinedButton.icon(
-          onPressed: _addNextDay,
-          icon: const Icon(Icons.add, color: navyBlue),
-          label: Text('Add Day ${_days.length + 1}', style: const TextStyle(fontWeight: FontWeight.bold, color: navyBlue)),
-          style: OutlinedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
-            side: const BorderSide(color: navyBlue, width: 1.5),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
-        ),
+        const SizedBox(height: 16),
 
-        const SizedBox(height: 24),
-        _buildSectionHeader('Interactive Route Builder (Map)', Icons.add_location_alt),
-        const SizedBox(height: 6),
-        const Text('Search location to pin on map or tap directly on map.', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
-        const SizedBox(height: 10),
-        _PlaceSearchField(
-          key: const ValueKey('route_builder_place_search_field'),
-          label: 'Search location to add map pin...',
-          hint: 'Type location (e.g. Kedarnath, Dehradun)...',
-          icon: Icons.search,
-          controller: _routePinSearchController,
-          onPlaceSelected: (item) {
-            _addRoutePinFromPlaceMap(item);
-          },
-        ),
-        const SizedBox(height: 10),
-        Container(
-          height: 240,
-          clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: navyBlue, width: 1.5),
-          ),
-          child: Stack(
+        // Inclusions & Exclusions & Things to Carry Checklist
+        _buildCardContainer(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              GoogleMap(
-                initialCameraPosition: const CameraPosition(
-                  target: LatLng(30.3165, 78.0322),
-                  zoom: 9,
-                ),
-                onMapCreated: (controller) => _mapController = controller,
-                onTap: (latLng) {
-                  final pinNum = _routePins.length + 1;
-                  final newPin = RoutePin(
-                    id: DateTime.now().millisecondsSinceEpoch.toString(),
-                    name: 'Pin $pinNum',
-                    type: _routePins.isEmpty ? 'start' : 'stop',
-                    lat: latLng.latitude,
-                    lng: latLng.longitude,
-                  );
-                  setState(() {
-                    _routePins.add(newPin);
-                  });
-                  _mapController?.animateCamera(
-                    CameraUpdate.newLatLngZoom(latLng, 13),
-                  );
-                },
-                markers: _routePins.asMap().entries.map((entry) {
-                  final idx = entry.key;
-                  final p = entry.value;
-                  final pinNum = idx + 1;
-                  final cleanName = p.name.replaceAll(RegExp(r'^\d+\.\s*'), '');
-                  return Marker(
-                    markerId: MarkerId(p.id),
-                    position: LatLng(p.lat, p.lng),
-                    infoWindow: InfoWindow(
-                      title: '$pinNum. $cleanName',
-                      snippet: 'Pin $pinNum',
-                    ),
-                    icon: BitmapDescriptor.defaultMarkerWithHue(
-                      idx == 0 ? BitmapDescriptor.hueGreen : BitmapDescriptor.hueRed,
-                    ),
-                  );
-                }).toSet(),
-                polylines: {
-                  if (_routePins.length >= 2)
-                    Polyline(
-                      polylineId: const PolylineId('route_line'),
-                      points: _routePins.map((p) => LatLng(p.lat, p.lng)).toList(),
-                      color: AppColors.primary,
-                      width: 3,
-                    ),
-                },
+              _buildSectionHeader('Inclusions, Exclusions & Packing List', Icons.checklist),
+              const SizedBox(height: 14),
+
+              // Inclusions
+              const Text('What\'s Included:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: navyBlue)),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: _inclusions.map((item) => Chip(
+                  label: Text(item, style: const TextStyle(fontSize: 11)),
+                  backgroundColor: const Color(0xFFECFDF5),
+                  side: const BorderSide(color: Color(0xFF10B981)),
+                  deleteIcon: const Icon(Icons.close, size: 14),
+                  onDeleted: () => setState(() => _inclusions.remove(item)),
+                )).toList(),
               ),
-              Positioned(
-                bottom: 8,
-                left: 8,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(color: Colors.white.withOpacity(0.9), borderRadius: BorderRadius.circular(6)),
-                  child: const Text('💡 Search location above or tap map to drop pins', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: navyBlue)),
-                ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildTextField(
+                      controller: _inclusionInputController,
+                      label: 'Add Included Item',
+                      hint: 'e.g. Certified local guide, permits...',
+                      icon: Icons.check_circle_outline,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: _addInclusion,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: navyBlue,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    child: const Text('Add', style: TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+
+              // Exclusions
+              const Text('What\'s Excluded:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: navyBlue)),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: _exclusions.map((item) => Chip(
+                  label: Text(item, style: const TextStyle(fontSize: 11)),
+                  backgroundColor: const Color(0xFFFEF2F2),
+                  side: const BorderSide(color: Color(0xFFEF4444)),
+                  deleteIcon: const Icon(Icons.close, size: 14),
+                  onDeleted: () => setState(() => _exclusions.remove(item)),
+                )).toList(),
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildTextField(
+                      controller: _exclusionInputController,
+                      label: 'Add Excluded Item',
+                      hint: 'e.g. Personal gear, airfare...',
+                      icon: Icons.cancel_outlined,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: _addExclusion,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: navyBlue,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    child: const Text('Add', style: TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+
+              // Things to Carry
+              const Text('Things to Carry / Packing List:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: navyBlue)),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: _thingsToCarry.map((item) => Chip(
+                  label: Text(item, style: const TextStyle(fontSize: 11)),
+                  backgroundColor: const Color(0xFFFFFBEB),
+                  side: const BorderSide(color: Color(0xFFF59E0B)),
+                  deleteIcon: const Icon(Icons.close, size: 14),
+                  onDeleted: () => setState(() => _thingsToCarry.remove(item)),
+                )).toList(),
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildTextField(
+                      controller: _packingInputController,
+                      label: 'Add Packing Item',
+                      hint: 'e.g. Trekking shoes, powerbank...',
+                      icon: Icons.backpack_outlined,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: _addThingToCarry,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: navyBlue,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    child: const Text('Add', style: TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                ],
               ),
             ],
           ),
-        ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Text('Pins Placed: ${_routePins.length}', style: const TextStyle(color: navyBlue, fontWeight: FontWeight.bold, fontSize: 13)),
-            const Spacer(),
-            if (_routePins.isNotEmpty)
-              TextButton(
-                onPressed: () => setState(() => _routePins.clear()),
-                child: const Text('Clear Pins', style: TextStyle(color: AppColors.brandRed, fontSize: 12)),
-              ),
-          ],
         ),
       ],
     );
   }
 
   // ---------------------------------------------------------------------------
-  // STEP 3: LOGISTICS, INCLUSIONS & PUBLISH
+  // STEP 3: PDF UPLOAD, NOTICE REQUIREMENTS & LOGISTICS
   // ---------------------------------------------------------------------------
-  Widget _buildStep3LogisticsAndPublish() {
+  Widget _buildStep3PdfAndLogistics() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // NOTICE CARD
         _buildCardContainer(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildSectionHeader('Inclusions & Exclusions', Icons.checklist_rtl),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: cyanLightBg,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.info_outline, color: navyBlue, size: 24),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'ITINERARY BROCHURE & PDF NOTICE',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.8,
+                            color: navyBlue,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'Guides can upload their official Itinerary brochure PDF. Travellers can download and view this document directly.',
+                          style: TextStyle(fontSize: 12, color: AppColors.textMuted, height: 1.4),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
               const SizedBox(height: 14),
-              const Text('Inclusions (Included in trip package)', style: TextStyle(color: AppColors.brandGreen, fontWeight: FontWeight.bold, fontSize: 13)),
-              const SizedBox(height: 6),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildTextField(
-                      key: const ValueKey('input_inclusion_field'),
-                      controller: _inclusionInputController,
-                      label: 'Add Inclusion',
-                      hint: 'e.g. Meals, Permits, Guide Fee',
-                      icon: Icons.check_circle_outline,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    icon: const Icon(Icons.add_circle, color: AppColors.brandGreen, size: 32),
-                    onPressed: () {
-                      if (_inclusionInputController.text.trim().isNotEmpty) {
-                        setState(() {
-                          _inclusions.add(_inclusionInputController.text.trim());
-                          _inclusionInputController.clear();
-                        });
-                      }
-                    },
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 6,
-                children: _inclusions
-                    .map((inc) => Chip(
-                          backgroundColor: const Color(0xFFDCFCE7),
-                          label: Text(inc, style: const TextStyle(fontSize: 12, color: Color(0xFF15803D))),
-                          deleteIcon: const Icon(Icons.cancel, size: 14, color: Color(0xFF15803D)),
-                          onDeleted: () => setState(() => _inclusions.remove(inc)),
-                        ))
-                    .toList(),
-              ),
 
-              const SizedBox(height: 16),
-              const Text('Exclusions (Not included in trip package)', style: TextStyle(color: AppColors.brandRed, fontWeight: FontWeight.bold, fontSize: 13)),
-              const SizedBox(height: 6),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildTextField(
-                      key: const ValueKey('input_exclusion_field'),
-                      controller: _exclusionInputController,
-                      label: 'Add Exclusion',
-                      hint: 'e.g. Personal Expenses, Insurance',
-                      icon: Icons.highlight_off,
-                    ),
+              _buildRequirementItem('1. Day-by-Day Schedule & Stays', 'Arrival, daily activities, trek hours, and overnight stay points.'),
+              _buildRequirementItem('2. Inclusions & Exclusions', 'Vehicles, stays, meals, captains vs personal expenses & festival passes.'),
+              _buildRequirementItem('3. Cost & Booking Payment Details', 'Double / Triple sharing rates, seat advance amount, and bank/GPay details.'),
+              _buildRequirementItem('4. Things to Carry (Packing List)', 'Trekking shoes, warm fleece, thermals, luggage limit, and power banks.'),
+              _buildRequirementItem('5. Terms & Cancellation Policy', 'Strict non-refundable cancellation policy, vehicle rules, and conduct.'),
+              _buildRequirementItem('6. Mountain Manners, Trivia & FAQs', 'Permit requirements (ILP), network coverage, cash advice, and host bios.'),
+              
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _showSamplePdfDialog,
+                  icon: const Icon(Icons.visibility, size: 16, color: navyBlue),
+                  label: const Text('View Sample PDF Format Reference', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: navyBlue)),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: navyBlue),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    icon: const Icon(Icons.add_circle, color: AppColors.brandRed, size: 32),
-                    onPressed: () {
-                      if (_exclusionInputController.text.trim().isNotEmpty) {
-                        setState(() {
-                          _exclusions.add(_exclusionInputController.text.trim());
-                          _exclusionInputController.clear();
-                        });
-                      }
-                    },
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 6,
-                children: _exclusions
-                    .map((exc) => Chip(
-                          backgroundColor: const Color(0xFFFEE2E2),
-                          label: Text(exc, style: const TextStyle(fontSize: 12, color: Color(0xFFB91C1C))),
-                          deleteIcon: const Icon(Icons.cancel, size: 14, color: Color(0xFFB91C1C)),
-                          onDeleted: () => setState(() => _exclusions.remove(exc)),
-                        ))
-                    .toList(),
+                ),
               ),
             ],
           ),
         ),
 
         const SizedBox(height: 16),
+
+        // DIRECT PDF UPLOAD BOX
+        _buildCardContainer(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildSectionHeader('Official Itinerary Brochure (PDF)', Icons.picture_as_pdf),
+              const SizedBox(height: 6),
+              const Text('Travellers will read and download this verified document directly from your listing.', style: TextStyle(fontSize: 12, color: AppColors.textMuted)),
+              const SizedBox(height: 14),
+
+              if (_pdfUrl.isNotEmpty) ...[
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFECFDF5),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFF10B981)),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF10B981),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(Icons.picture_as_pdf, color: Colors.white, size: 24),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  _pdfName.isNotEmpty ? _pdfName : 'Itinerary_Document.pdf',
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF065F46)),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 2),
+                                const Text('✓ PDF verified and attached to listing', style: TextStyle(fontSize: 11, color: Color(0xFF047857))),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () async {
+                                final uri = Uri.parse(_pdfUrl);
+                                if (await canLaunchUrl(uri)) {
+                                  await launchUrl(uri, mode: LaunchMode.externalApplication);
+                                }
+                              },
+                              icon: const Icon(Icons.open_in_new, size: 16),
+                              label: const Text('Open / Preview PDF', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF10B981),
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          OutlinedButton.icon(
+                            onPressed: () => setState(() {
+                              _pdfUrl = '';
+                              _pdfName = '';
+                            }),
+                            icon: const Icon(Icons.delete_outline, size: 16, color: AppColors.brandRed),
+                            label: const Text('Remove', style: TextStyle(fontSize: 12, color: AppColors.brandRed)),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: AppColors.brandRed),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ] else ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: softPageBg,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.black12, style: BorderStyle.solid),
+                  ),
+                  child: Column(
+                    children: [
+                      const Icon(Icons.cloud_upload_outlined, size: 40, color: navyBlue),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Upload Itinerary PDF from Device',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: navyBlue),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'PDF brochure will be directly downloadable by travellers',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+                      ),
+                      const SizedBox(height: 14),
+                      ElevatedButton.icon(
+                        onPressed: _isUploadingPdf ? null : _pickAndUploadPdf,
+                        icon: _isUploadingPdf
+                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                            : const Icon(Icons.upload_file, size: 18),
+                        label: Text(_isUploadingPdf ? 'Uploading PDF...' : 'Select PDF File', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: navyBlue,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text('OR ENTER DIRECT PDF URL', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey)),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildTextField(
+                              key: const ValueKey('input_pdf_url_field'),
+                              controller: _pdfUrlInputController,
+                              label: 'PDF Download Link',
+                              hint: 'https://.../itinerary.pdf',
+                              icon: Icons.link,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: navyBlue,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                            onPressed: () {
+                              final url = _pdfUrlInputController.text.trim();
+                              if (url.isNotEmpty) {
+                                setState(() {
+                                  _pdfUrl = url;
+                                  _pdfName = 'Attached_Itinerary.pdf';
+                                  _pdfUrlInputController.clear();
+                                });
+                              }
+                            },
+                            child: const Text('Attach', style: TextStyle(fontWeight: FontWeight.bold)),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        // LOGISTICS & MEETING SPOT
         _buildCardContainer(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1373,7 +2022,7 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
               _PlaceSearchField(
                 key: const ValueKey('meeting_point_place_search_field'),
                 label: 'Meeting Point Address / Pickup Spot',
-                hint: 'Type location... e.g. Dehradun Railway Station Gate 1, Pokhara Lakeside',
+                hint: 'Type location... e.g. Dimapur Airport, Kohima City Center',
                 icon: Icons.place,
                 controller: _meetingPointController,
                 onPlaceSelected: (item) {
@@ -1395,116 +2044,34 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
                 hint: 'https://maps.google.com/?q=...',
                 icon: Icons.map,
               ),
-              const SizedBox(height: 14),
-              const Text('Things to Carry / Packing Checklist', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: navyBlue)),
-              const SizedBox(height: 6),
-              // Quick-add suggestions
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: [
-                  'Warm Layers', 'Trekking Shoes', 'Rain Poncho', 'Water Bottle',
-                  'First Aid Kit', 'Valid Government ID', 'Headlamp', 'Sunscreen'
-                ].map((quick) => ActionChip(
-                  label: Text('+ $quick', style: const TextStyle(fontSize: 11, color: navyBlue, fontWeight: FontWeight.w600)),
-                  backgroundColor: cyanLightBg,
-                  onPressed: () {
-                    if (!_thingsToCarry.contains(quick)) {
-                      setState(() => _thingsToCarry.add(quick));
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: OutlinedButton.icon(
+                  onPressed: () async {
+                    final urlStr = _meetingPointMapsUrlController.text.trim().isNotEmpty
+                        ? _meetingPointMapsUrlController.text.trim()
+                        : (_meetingPointController.text.trim().isNotEmpty
+                            ? 'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(_meetingPointController.text.trim())}'
+                            : '');
+                    if (urlStr.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Please enter a meeting point address or maps link first')),
+                      );
+                      return;
+                    }
+                    final uri = Uri.parse(urlStr);
+                    if (await canLaunchUrl(uri)) {
+                      await launchUrl(uri, mode: LaunchMode.externalApplication);
                     }
                   },
-                )).toList(),
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildTextField(
-                      key: const ValueKey('input_packing_field'),
-                      controller: _packingInputController,
-                      label: 'Custom Packing Item',
-                      hint: 'e.g. Waterproof Gloves, Thermals',
-                      icon: Icons.backpack,
-                    ),
+                  icon: const Icon(Icons.directions, size: 16, color: navyBlue),
+                  label: const Text('Test on Google Maps 🗺️', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: navyBlue)),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: navyBlue),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    icon: const Icon(Icons.add_circle, color: navyBlue, size: 32),
-                    onPressed: () {
-                      final item = _packingInputController.text.trim();
-                      if (item.isNotEmpty) {
-                        setState(() {
-                          _thingsToCarry.add(item);
-                          _packingInputController.clear();
-                        });
-                      }
-                    },
-                  ),
-                ],
-              ),
-              if (_thingsToCarry.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: _thingsToCarry
-                      .map((item) => Chip(
-                            backgroundColor: cyanLightBg,
-                            label: Text(item, style: const TextStyle(fontSize: 12, color: navyBlue)),
-                            deleteIcon: const Icon(Icons.cancel, size: 14, color: navyBlue),
-                            onDeleted: () => setState(() => _thingsToCarry.remove(item)),
-                          ))
-                      .toList(),
-                ),
-              ],
-            ],
-          ),
-        ),
-
-        const SizedBox(height: 16),
-        _buildCardContainer(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildSectionHeader('Terms & Conditions', Icons.gavel),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  const Expanded(
-                    child: Text(
-                      'Guidelines, safety policies, and cancellation requirements for travellers.',
-                      style: TextStyle(fontSize: 12, color: AppColors.textMuted),
-                    ),
-                  ),
-                  TextButton.icon(
-                    icon: const Icon(Icons.auto_fix_high, size: 14, color: navyBlue),
-                    label: const Text('Insert Standard Terms', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: navyBlue)),
-                    onPressed: () {
-                      setState(() {
-                        _termsAndConditionsController.text =
-                            '1. Valid government identity proof required at start.\n'
-                            '2. Cancellation up to 48 hours before departure is eligible for refund.\n'
-                            '3. Tour routes subject to weather and mountain safety conditions.\n'
-                            '4. Participants must be medically fit for the chosen difficulty level.';
-                      });
-                    },
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              TextFormField(
-                key: const ValueKey('input_terms_conditions'),
-                controller: _termsAndConditionsController,
-                maxLines: 4,
-                style: const TextStyle(fontSize: 13, color: AppColors.textMain),
-                decoration: InputDecoration(
-                  hintText: 'Enter cancellation rules, permit requirements, and safety policies...',
-                  hintStyle: const TextStyle(color: Colors.black26, fontSize: 12),
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Colors.black12)),
-                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: navyBlue, width: 1.5)),
                 ),
               ),
             ],
@@ -1512,6 +2079,8 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
         ),
 
         const SizedBox(height: 16),
+
+        // SUMMARY CARD
         _buildCardContainer(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1530,8 +2099,39 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
                       style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: navyBlue),
                     ),
                     const SizedBox(height: 4),
-                    Text('Location: ${_cityController.text}, $_selectedState', style: const TextStyle(fontSize: 13, color: AppColors.textMuted)),
-                    Text('Duration: $_durationDays Days / $_durationNights Nights · Price: ₹${_priceController.text}', style: const TextStyle(fontSize: 13, color: AppColors.textMuted)),
+                    Text('Location: ${_cityController.text}, ${_stateController.text}', style: const TextStyle(fontSize: 13, color: AppColors.textMuted)),
+                    Text('Duration: $_durationDays Days / $_durationNights Nights · Base Price: ₹${_priceController.text}', style: const TextStyle(fontSize: 13, color: AppColors.textMuted)),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Icon(
+                          _days.any((d) => d.dayTitle.trim().isNotEmpty) ? Icons.check_circle : Icons.radio_button_unchecked,
+                          size: 15,
+                          color: _days.any((d) => d.dayTitle.trim().isNotEmpty) ? AppColors.brandGreen : Colors.grey,
+                        ),
+                        const SizedBox(width: 6),
+                        Text('Day Schedule: ${_days.length} Days Built', style: const TextStyle(fontSize: 12)),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(
+                          _pdfUrl.isNotEmpty ? Icons.check_circle : Icons.radio_button_unchecked,
+                          size: 15,
+                          color: _pdfUrl.isNotEmpty ? AppColors.brandGreen : Colors.grey,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          _pdfUrl.isNotEmpty ? 'PDF Brochure: ${_pdfName.isNotEmpty ? _pdfName : 'Attached'}' : 'PDF Brochure: None attached (Optional if Days added)',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: _pdfUrl.isNotEmpty ? FontWeight.bold : FontWeight.normal,
+                            color: _pdfUrl.isNotEmpty ? AppColors.brandGreen : AppColors.textMuted,
+                          ),
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 8),
                     Row(
                       children: [
@@ -1560,9 +2160,9 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.black.withOpacity(0.06)),
+        border: Border.all(color: Colors.black.withValues(alpha: 0.06)),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 6, offset: const Offset(0, 2))
+          BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6, offset: const Offset(0, 2))
         ],
       ),
       child: child,
@@ -1583,23 +2183,6 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
           style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: navyBlue),
         ),
       ],
-    );
-  }
-
-  ItineraryDay _copyDay(ItineraryDay d, {String? title, String? acc, String? mapsUrl, bool? hasStay}) {
-    return ItineraryDay(
-      dayNumber: d.dayNumber,
-      dayTitle: title ?? d.dayTitle,
-      accommodation: acc ?? d.accommodation,
-      accommodationPlaceId: d.accommodationPlaceId,
-      accommodationMapsUrl: mapsUrl ?? d.accommodationMapsUrl,
-      activities: d.activities,
-      highlights: d.highlights,
-      routePins: d.routePins,
-      hasOvernightStay: hasStay ?? d.hasOvernightStay,
-      mealsIncluded: d.mealsIncluded,
-      transportInfo: d.transportInfo,
-      overnightStay: d.overnightStay,
     );
   }
 
@@ -1648,7 +2231,7 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
   }) {
     return DropdownButtonFormField<T>(
       isExpanded: true,
-      value: value,
+      initialValue: value,
       dropdownColor: Colors.white,
       style: const TextStyle(color: AppColors.textMain, fontSize: 13),
       decoration: InputDecoration(
@@ -1666,18 +2249,222 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
       onChanged: onChanged,
     );
   }
+
+  Future<void> _showSearchablePicker({
+    required String title,
+    required List<String> options,
+    required TextEditingController controller,
+    String hint = 'Search or enter custom...',
+  }) async {
+    final searchController = TextEditingController();
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final query = searchController.text.trim();
+            final filtered = options
+                .where((o) => o.toLowerCase().contains(query.toLowerCase()))
+                .toList();
+            final isExactMatch = options
+                .any((o) => o.toLowerCase() == query.toLowerCase());
+
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.75,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              child: Column(
+                children: [
+                  Container(
+                    margin: const EdgeInsets.only(top: 10, bottom: 6),
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.black26,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                            color: navyBlue,
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, color: Colors.grey),
+                          onPressed: () => Navigator.of(ctx).pop(),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    child: TextField(
+                      controller: searchController,
+                      decoration: InputDecoration(
+                        hintText: hint,
+                        hintStyle: const TextStyle(color: Colors.black38, fontSize: 13),
+                        prefixIcon: const Icon(Icons.search, color: navyBlue, size: 20),
+                        suffixIcon: query.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear, size: 18),
+                                onPressed: () {
+                                  searchController.clear();
+                                  setModalState(() {});
+                                },
+                              )
+                            : null,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        filled: true,
+                        fillColor: softPageBg,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                      onChanged: (_) => setModalState(() {}),
+                    ),
+                  ),
+                  if (query.isNotEmpty && !isExactMatch)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                      child: InkWell(
+                        onTap: () {
+                          setState(() => controller.text = query);
+                          Navigator.of(ctx).pop();
+                        },
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: cyanLightBg,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: cyanAccent),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.add_circle, color: navyBlue, size: 20),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  'Use custom: "$query"',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: navyBlue,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                              const Icon(Icons.arrow_forward_ios, color: navyBlue, size: 14),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  const Divider(height: 12),
+                  Expanded(
+                    child: ListView.separated(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      itemCount: filtered.length,
+                      separatorBuilder: (context, index) => const Divider(height: 1, indent: 16, endIndent: 16),
+                      itemBuilder: (context, index) {
+                        final item = filtered[index];
+                        final isSelected = controller.text.toLowerCase() == item.toLowerCase();
+                        return ListTile(
+                          dense: true,
+                          title: Text(
+                            item,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                              color: isSelected ? navyBlue : Colors.black87,
+                            ),
+                          ),
+                          trailing: isSelected
+                              ? const Icon(Icons.check_circle, color: cyanAccent, size: 20)
+                              : null,
+                          onTap: () {
+                            setState(() => controller.text = item);
+                            Navigator.of(ctx).pop();
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildSearchablePickerField({
+    required String label,
+    required String hint,
+    required IconData icon,
+    required TextEditingController controller,
+    required List<String> options,
+  }) {
+    return TextFormField(
+      controller: controller,
+      style: const TextStyle(color: AppColors.textMain, fontSize: 13),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+        hintText: hint,
+        hintStyle: const TextStyle(color: Colors.black26, fontSize: 12),
+        prefixIcon: Icon(icon, color: navyBlue, size: 18),
+        suffixIcon: IconButton(
+          icon: const Icon(Icons.arrow_drop_down_circle_outlined, color: navyBlue, size: 20),
+          tooltip: 'Browse list',
+          onPressed: () => _showSearchablePicker(
+            title: label,
+            options: options,
+            controller: controller,
+            hint: 'Search $label or type custom...',
+          ),
+        ),
+        filled: true,
+        fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Colors.black12),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: navyBlue, width: 1.5),
+        ),
+      ),
+    );
+  }
 }
 
+// -----------------------------------------------------------------------------
+// ACCOMMODATION / LODGING FIELD WIDGET
+// -----------------------------------------------------------------------------
 class _AccommodationField extends StatefulWidget {
   final ItineraryDay day;
   final ValueChanged<ItineraryDay> onDayUpdated;
-  final void Function(LatLng latLng, String placeName, String placeId)? onLocationSelectedOnMap;
 
   const _AccommodationField({
     super.key,
     required this.day,
     required this.onDayUpdated,
-    this.onLocationSelectedOnMap,
   });
 
   @override
@@ -1686,17 +2473,35 @@ class _AccommodationField extends StatefulWidget {
 
 class _AccommodationFieldState extends State<_AccommodationField> {
   static const Color _navyBlue = Color(0xFF1B365D);
-  static const Color _cyanAccent = Color(0xFF00B4D8);
-  static const Color _cyanLightBg = Color(0xFFE0F7FA);
 
-  final TextEditingController _searchController = TextEditingController();
+  late final TextEditingController _nameController;
+  late final TextEditingController _mapsUrlController;
   List<Map<String, String>> _suggestions = [];
   bool _isLoading = false;
   Timer? _debounce;
 
   @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.day.accommodation);
+    _mapsUrlController = TextEditingController(text: widget.day.accommodationMapsUrl);
+  }
+
+  @override
+  void didUpdateWidget(covariant _AccommodationField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.day.accommodation != _nameController.text) {
+      _nameController.text = widget.day.accommodation;
+    }
+    if (widget.day.accommodationMapsUrl != _mapsUrlController.text) {
+      _mapsUrlController.text = widget.day.accommodationMapsUrl;
+    }
+  }
+
+  @override
   void dispose() {
-    _searchController.dispose();
+    _nameController.dispose();
+    _mapsUrlController.dispose();
     _debounce?.cancel();
     super.dispose();
   }
@@ -1754,7 +2559,7 @@ class _AccommodationFieldState extends State<_AccommodationField> {
             }
           }
         } catch (e) {
-          debugPrint('Lodging autocomplete error: $e');
+          debugPrint('Accommodation search error: $e');
         }
       }
 
@@ -1767,323 +2572,159 @@ class _AccommodationFieldState extends State<_AccommodationField> {
     });
   }
 
-  Future<void> _selectSuggestion(Map<String, String> item) async {
-    final placeId = item['placeId'] ?? '';
+  void _selectSuggestion(Map<String, String> item) {
     final name = item['name'] ?? '';
-    double lat = 0.0;
-    double lng = 0.0;
+    final mapsUrl = 'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(item['fullDescription'] ?? name)}';
+    _nameController.text = name;
+    _mapsUrlController.text = mapsUrl;
 
-    final keys = [
-      "AIzaSyCT8GU_dkAkoLlxhkb9TFc0vQasOHeAFxA",
-      "AIzaSyBDNeSC26NH00lIuxZQA_GaBDXcicywdM4",
-    ];
-
-    if (placeId.isNotEmpty) {
-      for (final apiKey in keys) {
-        try {
-          final url = Uri.parse(
-            'https://maps.googleapis.com/maps/api/place/details/json?place_id=$placeId&key=$apiKey',
-          );
-          final response = await http.get(url);
-          if (response.statusCode == 200) {
-            final data = jsonDecode(response.body);
-            if (data['status'] == 'OK' && data['result']?['geometry']?['location'] != null) {
-              final loc = data['result']['geometry']['location'];
-              lat = (loc['lat'] as num).toDouble();
-              lng = (loc['lng'] as num).toDouble();
-              break;
-            }
-          }
-        } catch (e) {
-          debugPrint('Accommodation details error: $e');
-        }
-      }
-    }
-
-    final mapsUrl = "https://maps.google.com/?q=$lat,$lng&query_place_id=$placeId";
-
-    final updatedDay = ItineraryDay(
+    widget.onDayUpdated(ItineraryDay(
       dayNumber: widget.day.dayNumber,
       dayTitle: widget.day.dayTitle,
       accommodation: name,
-      accommodationPlaceId: placeId,
+      accommodationPlaceId: item['placeId'] ?? '',
       accommodationMapsUrl: mapsUrl,
-      hasOvernightStay: true,
-      activities: widget.day.activities,
-      highlights: widget.day.highlights,
-      routePins: widget.day.routePins,
       mealsIncluded: widget.day.mealsIncluded,
       transportInfo: widget.day.transportInfo,
       overnightStay: widget.day.overnightStay,
-    );
+      hasOvernightStay: widget.day.hasOvernightStay,
+      activities: widget.day.activities,
+      highlights: widget.day.highlights,
+      routePins: widget.day.routePins,
+    ));
 
-    widget.onDayUpdated(updatedDay);
-
-    if (lat != 0.0 && lng != 0.0 && widget.onLocationSelectedOnMap != null) {
-      widget.onLocationSelectedOnMap!(LatLng(lat, lng), name, placeId);
-    }
-
-    setState(() {
-      _suggestions = [];
-      _searchController.clear();
-    });
+    setState(() => _suggestions = []);
   }
 
-  void _clearStay({bool setAsDayTrip = false}) {
-    final updatedDay = ItineraryDay(
+  void _notifyUpdated() {
+    final name = _nameController.text.trim();
+    final mapsUrl = _mapsUrlController.text.trim().isNotEmpty
+        ? _mapsUrlController.text.trim()
+        : (name.isNotEmpty ? 'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(name)}' : '');
+
+    widget.onDayUpdated(ItineraryDay(
       dayNumber: widget.day.dayNumber,
       dayTitle: widget.day.dayTitle,
-      accommodation: '',
-      accommodationPlaceId: '',
-      accommodationMapsUrl: '',
-      hasOvernightStay: !setAsDayTrip,
-      activities: widget.day.activities,
-      highlights: widget.day.highlights,
-      routePins: widget.day.routePins,
+      accommodation: name,
+      accommodationPlaceId: widget.day.accommodationPlaceId,
+      accommodationMapsUrl: mapsUrl,
       mealsIncluded: widget.day.mealsIncluded,
       transportInfo: widget.day.transportInfo,
       overnightStay: widget.day.overnightStay,
-    );
-    widget.onDayUpdated(updatedDay);
-    setState(() {
-      _suggestions = [];
-      _searchController.clear();
-    });
+      hasOvernightStay: widget.day.hasOvernightStay,
+      activities: widget.day.activities,
+      highlights: widget.day.highlights,
+      routePins: widget.day.routePins,
+    ));
   }
 
   @override
   Widget build(BuildContext context) {
-    final isStayRequired = widget.day.hasOvernightStay;
-    final hasAccommodation = widget.day.accommodation.isNotEmpty;
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Header with Optional / Day-Trip Toggle
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Row(
-              children: [
-                Icon(Icons.hotel, size: 16, color: _navyBlue),
-                SizedBox(width: 6),
-                Text(
-                  'Lodging / Overnight Stay',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: _navyBlue),
-                ),
-              ],
-            ),
-            Row(
-              children: [
-                Text(
-                  isStayRequired ? 'Overnight Stay' : 'Day Trip (No Stay)',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: isStayRequired ? _navyBlue : Colors.orange.shade800,
-                  ),
-                ),
-                const SizedBox(width: 4),
-                Switch(
-                  value: isStayRequired,
-                  activeThumbColor: _navyBlue,
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  onChanged: (val) {
-                    final updatedDay = ItineraryDay(
-                      dayNumber: widget.day.dayNumber,
-                      dayTitle: widget.day.dayTitle,
-                      accommodation: val ? widget.day.accommodation : '',
-                      accommodationPlaceId: val ? widget.day.accommodationPlaceId : '',
-                      accommodationMapsUrl: val ? widget.day.accommodationMapsUrl : '',
-                      hasOvernightStay: val,
-                      activities: widget.day.activities,
-                      highlights: widget.day.highlights,
-                      routePins: widget.day.routePins,
-                      mealsIncluded: widget.day.mealsIncluded,
-                      transportInfo: widget.day.transportInfo,
-                      overnightStay: widget.day.overnightStay,
-                    );
-                    widget.onDayUpdated(updatedDay);
-                  },
-                ),
-              ],
-            ),
-          ],
+        TextFormField(
+          controller: _nameController,
+          style: const TextStyle(fontSize: 12, color: AppColors.textMain, fontWeight: FontWeight.bold),
+          decoration: InputDecoration(
+            labelText: 'Stay / Accommodation (e.g. Hotel, Homestay, Alpine Tents)',
+            labelStyle: const TextStyle(color: AppColors.textMuted, fontSize: 11),
+            hintText: 'Search or type hotel, camp, or homestay...',
+            hintStyle: const TextStyle(color: Colors.black26, fontSize: 11),
+            prefixIcon: const Icon(Icons.hotel, color: _navyBlue, size: 16),
+            suffixIcon: _isLoading
+                ? const Padding(
+                    padding: EdgeInsets.all(12.0),
+                    child: SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: _navyBlue)),
+                  )
+                : (_nameController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, size: 14, color: Colors.grey),
+                        onPressed: () {
+                          _nameController.clear();
+                          _mapsUrlController.clear();
+                          _notifyUpdated();
+                        },
+                      )
+                    : null),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+            filled: true,
+            fillColor: Colors.white,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.black12)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _navyBlue, width: 1.5)),
+          ),
+          onChanged: (val) {
+            _onSearchChanged(val);
+            _notifyUpdated();
+          },
         ),
-        const SizedBox(height: 6),
 
-        // If marked as Day Trip / In-Transit without overnight stay
-        if (!isStayRequired) ...[
+        if (_suggestions.isNotEmpty) ...[
+          const SizedBox(height: 4),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
-              color: const Color(0xFFFFF8E1),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFFFFD54F)),
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.black12),
+              boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2))],
             ),
-            child: Row(
-              children: [
-                const Icon(Icons.wb_sunny_outlined, size: 20, color: Color(0xFFE65100)),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Day Trip / In-Transit (No Stay Required)',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.orange.shade900),
-                      ),
-                      const SizedBox(height: 2),
-                      const Text(
-                        'No overnight lodging required for this day.',
-                        style: TextStyle(fontSize: 11, color: Color(0xFF795548)),
-                      ),
-                    ],
-                  ),
-                ),
-                TextButton.icon(
-                  icon: const Icon(Icons.add, size: 14, color: _navyBlue),
-                  label: const Text('Add Stay', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: _navyBlue)),
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                  onPressed: () {
-                    final updatedDay = ItineraryDay(
-                      dayNumber: widget.day.dayNumber,
-                      dayTitle: widget.day.dayTitle,
-                      accommodation: '',
-                      accommodationPlaceId: '',
-                      accommodationMapsUrl: '',
-                      hasOvernightStay: true,
-                      activities: widget.day.activities,
-                      highlights: widget.day.highlights,
-                      routePins: widget.day.routePins,
-                      mealsIncluded: widget.day.mealsIncluded,
-                      transportInfo: widget.day.transportInfo,
-                      overnightStay: widget.day.overnightStay,
-                    );
-                    widget.onDayUpdated(updatedDay);
-                  },
-                ),
-              ],
+            child: Column(
+              children: _suggestions.map((item) {
+                return ListTile(
+                  dense: true,
+                  leading: const Icon(Icons.hotel, size: 16, color: _navyBlue),
+                  title: Text(item['name'] ?? '', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  subtitle: item['address']!.isNotEmpty ? Text(item['address']!, style: const TextStyle(fontSize: 10, color: AppColors.textMuted)) : null,
+                  onTap: () => _selectSuggestion(item),
+                );
+              }).toList(),
             ),
           ),
-        ] else if (hasAccommodation) ...[
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: _cyanLightBg,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: _cyanAccent),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.hotel, size: 20, color: _navyBlue),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: InkWell(
-                    onTap: () async {
-                      final urlStr = widget.day.accommodationMapsUrl.isNotEmpty
-                          ? widget.day.accommodationMapsUrl
-                          : 'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(widget.day.accommodation)}';
-                      final uri = Uri.parse(urlStr);
-                      if (await canLaunchUrl(uri)) {
-                        await launchUrl(uri, mode: LaunchMode.externalApplication);
-                      }
-                    },
-                    child: Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            widget.day.accommodation,
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: _navyBlue),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        const Icon(Icons.map, size: 16, color: _cyanAccent),
-                      ],
-                    ),
-                  ),
-                ),
-                OutlinedButton.icon(
-                  icon: const Icon(Icons.delete_outline, size: 14, color: AppColors.brandRed),
-                  label: const Text('Remove Stay', style: TextStyle(fontSize: 11, color: AppColors.brandRed, fontWeight: FontWeight.bold)),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: AppColors.brandRed),
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                  ),
-                  onPressed: () => _clearStay(),
-                ),
-              ],
-            ),
-          ),
-        ] else ...[
-          TextFormField(
-            key: ValueKey('accommodation_input_day_${widget.day.dayNumber}'),
-            controller: _searchController,
-            style: const TextStyle(fontSize: 13, color: AppColors.textMain),
-            decoration: InputDecoration(
-              hintText: 'Search hotel / resort / homestay on Google...',
-              hintStyle: const TextStyle(color: Colors.black38, fontSize: 12),
-              prefixIcon: const Icon(Icons.search, color: _navyBlue, size: 18),
-              suffixIcon: _isLoading
-                  ? const Padding(
-                      padding: EdgeInsets.all(12.0),
-                      child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: _navyBlue)),
-                    )
-                  : null,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Colors.black12)),
-              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _navyBlue, width: 1.5)),
-            ),
-            onChanged: _onSearchChanged,
-          ),
-          if (_suggestions.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.black12),
-                boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, 3))],
-              ),
-              child: Column(
-                children: _suggestions.map((item) {
-                  return ListTile(
-                    dense: true,
-                    leading: const Icon(Icons.hotel, size: 18, color: _navyBlue),
-                    title: Text(item['name'] ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                    subtitle: item['address']!.isNotEmpty ? Text(item['address']!, style: const TextStyle(fontSize: 11, color: AppColors.textMuted)) : null,
-                    onTap: () => _selectSuggestion(item),
-                  );
-                }).toList(),
-              ),
-            ),
-          ],
+        ],
+
+        if (_nameController.text.isNotEmpty) ...[
           const SizedBox(height: 6),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Expanded(
-                child: Text(
-                  '💡 Pick hotel to pin on map or skip if not needed.',
-                  style: TextStyle(color: AppColors.textMuted, fontSize: 11, fontStyle: FontStyle.italic),
+              Expanded(
+                child: TextFormField(
+                  controller: _mapsUrlController,
+                  style: const TextStyle(fontSize: 11, color: AppColors.textMain),
+                  decoration: InputDecoration(
+                    hintText: 'Stay Google Maps link (Auto or Custom)',
+                    hintStyle: const TextStyle(fontSize: 10, color: Colors.black26),
+                    prefixIcon: const Icon(Icons.map, size: 14, color: _navyBlue),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: const BorderSide(color: Colors.black12)),
+                  ),
+                  onChanged: (_) => _notifyUpdated(),
                 ),
               ),
-              InkWell(
-                onTap: () => _clearStay(setAsDayTrip: true),
-                child: Text(
-                  'Mark as Day Trip ☀️',
-                  style: TextStyle(fontSize: 11, color: Colors.orange.shade800, fontWeight: FontWeight.bold, decoration: TextDecoration.underline),
+              const SizedBox(width: 6),
+              OutlinedButton.icon(
+                onPressed: () async {
+                  final url = _mapsUrlController.text.trim().isNotEmpty
+                      ? _mapsUrlController.text.trim()
+                      : (_nameController.text.trim().isNotEmpty
+                          ? 'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(_nameController.text.trim())}'
+                          : '');
+                  if (url.isNotEmpty) {
+                    final uri = Uri.parse(url);
+                    if (await canLaunchUrl(uri)) {
+                      await launchUrl(uri, mode: LaunchMode.externalApplication);
+                    }
+                  }
+                },
+                icon: const Icon(Icons.open_in_new, size: 12, color: _navyBlue),
+                label: const Text('Map 📍', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: _navyBlue)),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: _navyBlue),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                 ),
               ),
             ],
@@ -2094,6 +2735,9 @@ class _AccommodationFieldState extends State<_AccommodationField> {
   }
 }
 
+// -----------------------------------------------------------------------------
+// PLACE SEARCH FIELD (FOR BASE CITY & MEETING SPOT)
+// -----------------------------------------------------------------------------
 class _PlaceSearchField extends StatefulWidget {
   final String label;
   final String hint;

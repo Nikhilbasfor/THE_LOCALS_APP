@@ -46,6 +46,9 @@ app.*.map.json
 
 # Sensitive credentials & environment files
 android/local.properties
+android/key.properties
+*.jks
+*.keystore
 ios/Pods/
 *.ipa
 *.apk

@@ -1,13 +1,47 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../../data/geo_data.dart';
 import '../../models/experience_model.dart';
 import '../../repositories/experience_repository.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/spring_interactions.dart';
 import '../../widgets/travel_pattern_background.dart';
+import '../guide/guide_onboarding_screen.dart';
+import '../login_screen.dart';
 import 'experience_detail_modal.dart';
 import 'traveller_notification_bell.dart';
 import 'traveller_wishlist_tab.dart';
+
+const List<String> exploreCategories = [
+  'All',
+  'Trek',
+  'Cultural',
+  'Offbeat',
+  'Heritage',
+  'Camping',
+  'Expedition',
+  'Wildlife & Nature',
+  'Culinary',
+  'Wellness',
+];
+
+const List<String> popularDestinations = [
+  'All',
+  'Ladakh & Zanskar',
+  'Spiti Valley',
+  'Parvati & Tirthan Valley',
+  'Kashmir Valley',
+  'Garhwal (Kedarkantha, Har Ki Dun)',
+  'Kumaon (Pindari, Munsiyari)',
+  'Dzukou Valley (Nagaland)',
+  'Ziro Valley (Arunachal)',
+  'Meghalaya Living Roots & Cherrapunji',
+  'Sikkim & Dzongri',
+  'Wayanad & Western Ghats',
+  'Munnar & Idukki (Kerala)',
+  'Sahyadris (Maharashtra)',
+  'Jaisalmer & Thar Desert',
+];
 
 class ExploreHomeScreen extends StatefulWidget {
   const ExploreHomeScreen({super.key});
@@ -21,511 +55,161 @@ class _ExploreHomeScreenState extends State<ExploreHomeScreen> {
   final TextEditingController _searchController = TextEditingController();
 
   String _selectedCategory = 'All';
-  String _selectedState = 'All Regions';
-  String _selectedDuration = 'All'; // 'All', '1 Day', '2–4 Days', '5–7 Days', '8+ Days'
-  String _selectedPriceRange = 'All'; // 'All', 'Under ₹5k', '₹5k – ₹15k', '₹15k – ₹30k', '₹30k+'
-
-  static const List<Map<String, dynamic>> categoryItems = [
-    {'name': 'All', 'icon': Icons.grid_view_rounded},
-    {'name': 'Trekking', 'icon': Icons.hiking_rounded},
-    {'name': 'Heritage', 'icon': Icons.account_balance_rounded},
-    {'name': 'Cultural', 'icon': Icons.palette_rounded},
-    {'name': 'Adventure', 'icon': Icons.kayaking_rounded},
-    {'name': 'Wildlife', 'icon': Icons.pets_rounded},
-    {'name': 'Culinary', 'icon': Icons.restaurant_rounded},
-    {'name': 'Spiritual', 'icon': Icons.spa_rounded},
-    {'name': 'Photography', 'icon': Icons.camera_alt_rounded},
-  ];
-
-  static const List<String> allRegionsAndStates = [
-    'All Regions',
-    // Himalayan Nations & Cross-Border Regions
-    'Nepal',
-    'Bhutan',
-    'Tibet',
-    // Key Himalayan States & UTs
-    'Himachal Pradesh',
-    'Uttarakhand',
-    'Ladakh',
-    'Jammu & Kashmir',
-    'Sikkim',
-    'Arunachal Pradesh',
-    'Meghalaya',
-    'Assam',
-    'Nagaland',
-    'Manipur',
-    'Mizoram',
-    'Tripura',
-    // Other Indian States
-    'Goa',
-    'Rajasthan',
-    'Kerala',
-    'Karnataka',
-    'Maharashtra',
-    'West Bengal',
-    'Delhi (NCT)',
-    'Punjab',
-    'Haryana',
-    'Madhya Pradesh',
-    'Gujarat',
-    'Tamil Nadu',
-    'Uttar Pradesh',
-    'Bihar',
-    'Chhattisgarh',
-    'Jharkhand',
-    'Odisha',
-    'Andhra Pradesh',
-    'Telangana',
-    'Andaman & Nicobar Islands',
-    'Puducherry',
-  ];
-
-  static const List<String> durationOptions = [
-    'All',
-    '1 Day',
-    '2–4 Days',
-    '5–7 Days',
-    '8+ Days',
-  ];
-
-  static const List<String> priceRangeOptions = [
-    'All',
-    'Under ₹5k',
-    '₹5k – ₹15k',
-    '₹15k – ₹30k',
-    '₹30k+',
-  ];
+  String _selectedState = 'All';
+  String _selectedDestination = 'All';
+  double _maxPrice = 100000;
+  bool _filterDrawerOpen = false;
 
   int get _activeFiltersCount {
     int count = 0;
     if (_selectedCategory != 'All') count++;
-    if (_selectedState != 'All Regions' && _selectedState != 'All States') count++;
-    if (_selectedDuration != 'All') count++;
-    if (_selectedPriceRange != 'All') count++;
+    if (_selectedState != 'All' && _selectedState != 'All Regions') count++;
+    if (_selectedDestination != 'All') count++;
+    if (_maxPrice < 100000) count++;
     return count;
   }
 
   void _resetAllFilters() {
     setState(() {
       _selectedCategory = 'All';
-      _selectedState = 'All Regions';
-      _selectedDuration = 'All';
-      _selectedPriceRange = 'All';
+      _selectedState = 'All';
+      _selectedDestination = 'All';
+      _maxPrice = 100000;
+      _searchController.clear();
+      _filterDrawerOpen = false;
     });
+  }
+
+  String _getExpeditionZone(ExperienceModel exp) {
+    final state = exp.state.toLowerCase();
+    final location = exp.city.toLowerCase();
+    final text = '$state $location ${exp.title.toLowerCase()} ${exp.description.toLowerCase()}';
+
+    // Northeast
+    if (text.contains('assam') ||
+        text.contains('meghalaya') ||
+        text.contains('arunachal') ||
+        text.contains('sikkim') ||
+        text.contains('nagaland') ||
+        text.contains('manipur') ||
+        text.contains('mizoram') ||
+        text.contains('tripura') ||
+        text.contains('dzukou') ||
+        text.contains('ziro') ||
+        text.contains('kaziranga') ||
+        text.contains('cherrapunji') ||
+        text.contains('shillong') ||
+        text.contains('tawang') ||
+        text.contains('nepal') ||
+        text.contains('bhutan')) {
+      return 'Northeast';
+    }
+
+    // South
+    if (text.contains('kerala') ||
+        text.contains('tamil') ||
+        text.contains('karnataka') ||
+        text.contains('goa') ||
+        text.contains('andhra') ||
+        text.contains('telangana') ||
+        text.contains('wayanad') ||
+        text.contains('munnar') ||
+        text.contains('coorg') ||
+        text.contains('ooty') ||
+        text.contains('kodaikanal') ||
+        text.contains('western ghats')) {
+      return 'South';
+    }
+
+    // West
+    if (text.contains('maharashtra') ||
+        text.contains('gujarat') ||
+        text.contains('mumbai') ||
+        text.contains('pune') ||
+        text.contains('sahyadri') ||
+        text.contains('kutch') ||
+        text.contains('daman')) {
+      return 'West';
+    }
+
+    // North (Default)
+    return 'North';
+  }
+
+  void _showHostTripDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: const [
+              Icon(Icons.hiking, color: Color(0xFF059669)),
+              SizedBox(width: 8),
+              Text(
+                'Host a Trip with THE LOCALS',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textMain),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: const [
+              Text(
+                'Lead travellers through your ancestral homeland, create authentic itineraries, and earn direct grassroots income.',
+                style: TextStyle(fontSize: 13, color: AppColors.textMuted, height: 1.4),
+              ),
+              SizedBox(height: 14),
+              Text(
+                'Choose how you want to proceed:',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textMain),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel', style: TextStyle(color: AppColors.textMuted)),
+            ),
+            OutlinedButton(
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Color(0xFF059669)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const LoginScreen(role: 'guide')),
+                );
+              },
+              child: const Text('Sign In as Host', style: TextStyle(color: Color(0xFF059669), fontWeight: FontWeight.bold)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF059669),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const GuideOnboardingScreen(initialStep: 0)),
+                );
+              },
+              child: const Text('Register as Host', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
-  }
-
-  void _openStateFilterModal() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      isScrollControlled: true,
-      builder: (context) {
-        String query = '';
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            final filteredStates = allRegionsAndStates
-                .where((s) => s.toLowerCase().contains(query.toLowerCase()))
-                .toList();
-
-            return DraggableScrollableSheet(
-              initialChildSize: 0.68,
-              minChildSize: 0.4,
-              maxChildSize: 0.88,
-              expand: false,
-              builder: (context, scrollController) {
-                return Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Center(
-                        child: Container(
-                          width: 42,
-                          height: 4,
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade300,
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text(
-                            'Select Destination Region / State',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.travellerForestDark,
-                            ),
-                          ),
-                          if (_selectedState != 'All Regions' && _selectedState != 'All States')
-                            TextButton(
-                              onPressed: () {
-                                setState(() => _selectedState = 'All Regions');
-                                Navigator.pop(context);
-                              },
-                              child: const Text('Reset', style: TextStyle(color: Colors.redAccent, fontSize: 13)),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      TextField(
-                        onChanged: (val) => setModalState(() => query = val),
-                        decoration: InputDecoration(
-                          hintText: 'Search regions (e.g. Nepal, Bhutan, Himachal)...',
-                          hintStyle: const TextStyle(fontSize: 13, color: AppColors.textMuted),
-                          prefixIcon: const Icon(Icons.search, size: 20, color: AppColors.travellerForestDark),
-                          filled: true,
-                          fillColor: AppColors.bgLight,
-                          contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: Colors.grey.shade300),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: Colors.grey.shade300),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Expanded(
-                        child: ListView.builder(
-                          controller: scrollController,
-                          physics: bespokeBouncingScrollPhysics,
-                          itemCount: filteredStates.length,
-                          itemBuilder: (context, idx) {
-                            final stateName = filteredStates[idx];
-                            final isSelected = _selectedState == stateName;
-                            final isHimalayan = ['Nepal', 'Bhutan', 'Tibet'].contains(stateName);
-                            return ListTile(
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                              title: Row(
-                                children: [
-                                  Text(
-                                    stateName,
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                                      color: isSelected ? AppColors.travellerForestDark : AppColors.textMain,
-                                    ),
-                                  ),
-                                  if (isHimalayan) ...[
-                                    const SizedBox(width: 6),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.travellerLightMint,
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      child: const Text('Himalayas', style: TextStyle(fontSize: 10, color: AppColors.travellerForestDark, fontWeight: FontWeight.bold)),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                              trailing: isSelected
-                                  ? const Icon(Icons.check_circle, color: AppColors.brandGreen, size: 20)
-                                  : null,
-                              onTap: () {
-                                setState(() => _selectedState = stateName);
-                                Navigator.pop(context);
-                              },
-                            );
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            );
-          },
-        );
-      },
-    );
-  }
-
-  void _openFullFilterModal() {
-    String tempCategory = _selectedCategory;
-    String tempState = _selectedState;
-    String tempDuration = _selectedDuration;
-    String tempPrice = _selectedPriceRange;
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      isScrollControlled: true,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            final activeCount = (tempCategory != 'All' ? 1 : 0) +
-                ((tempState != 'All Regions' && tempState != 'All States') ? 1 : 0) +
-                (tempDuration != 'All' ? 1 : 0) +
-                (tempPrice != 'All' ? 1 : 0);
-
-            return DraggableScrollableSheet(
-              initialChildSize: 0.78,
-              minChildSize: 0.5,
-              maxChildSize: 0.92,
-              expand: false,
-              builder: (context, scrollController) {
-                return Column(
-                  children: [
-                    // Handle and Title Bar
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
-                      child: Column(
-                        children: [
-                          Center(
-                            child: Container(
-                              width: 42,
-                              height: 4,
-                              decoration: BoxDecoration(
-                                color: Colors.grey.shade300,
-                                borderRadius: BorderRadius.circular(2),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Row(
-                                children: [
-                                  Icon(Icons.tune, color: AppColors.travellerForestDark, size: 20),
-                                  SizedBox(width: 8),
-                                  Text(
-                                    'Filter Expeditions',
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                      color: AppColors.travellerForestDark,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              if (activeCount > 0)
-                                TextButton(
-                                  onPressed: () {
-                                    setModalState(() {
-                                      tempCategory = 'All';
-                                      tempState = 'All Regions';
-                                      tempDuration = 'All';
-                                      tempPrice = 'All';
-                                    });
-                                  },
-                                  child: const Text('Reset All', style: TextStyle(color: Colors.redAccent, fontSize: 13, fontWeight: FontWeight.bold)),
-                                ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Divider(height: 1),
-
-                    // Filter Options Body
-                    Expanded(
-                      child: ListView(
-                        controller: scrollController,
-                        physics: bespokeBouncingScrollPhysics,
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                        children: [
-                          // 1. Destination / Region
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text('Destination / Region', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.travellerForestDark)),
-                              TextButton.icon(
-                                onPressed: () {
-                                  Navigator.pop(context);
-                                  _openStateFilterModal();
-                                },
-                                icon: const Icon(Icons.arrow_forward_ios, size: 12, color: AppColors.travellerForestDark),
-                                label: const Text('All States', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.travellerForestDark)),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: [
-                              'All Regions',
-                              'Nepal',
-                              'Bhutan',
-                              'Tibet',
-                              'Himachal Pradesh',
-                              'Uttarakhand',
-                              'Ladakh',
-                              'Sikkim',
-                            ].map((st) {
-                              final isSel = tempState == st;
-                              return ChoiceChip(
-                                label: Text(st),
-                                selected: isSel,
-                                selectedColor: AppColors.travellerSoftMint,
-                                backgroundColor: AppColors.bgLight,
-                                labelStyle: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
-                                  color: isSel ? AppColors.travellerForestDark : AppColors.textMain,
-                                ),
-                                onSelected: (sel) {
-                                  setModalState(() => tempState = sel ? st : 'All Regions');
-                                },
-                              );
-                            }).toList(),
-                          ),
-
-                          const SizedBox(height: 20),
-
-                          // 2. Trip Duration
-                          const Text('Trip Duration', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.travellerForestDark)),
-                          const SizedBox(height: 8),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: durationOptions.map((dur) {
-                              final isSel = tempDuration == dur;
-                              return ChoiceChip(
-                                label: Text(dur == '1 Day' ? '1 Day (Day Trip)' : dur),
-                                selected: isSel,
-                                selectedColor: AppColors.travellerSoftMint,
-                                backgroundColor: AppColors.bgLight,
-                                labelStyle: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
-                                  color: isSel ? AppColors.travellerForestDark : AppColors.textMain,
-                                ),
-                                onSelected: (sel) {
-                                  setModalState(() => tempDuration = sel ? dur : 'All');
-                                },
-                              );
-                            }).toList(),
-                          ),
-
-                          const SizedBox(height: 20),
-
-                          // 3. Price Range
-                          const Text('Price Range', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.travellerForestDark)),
-                          const SizedBox(height: 8),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: priceRangeOptions.map((pr) {
-                              final isSel = tempPrice == pr;
-                              return ChoiceChip(
-                                label: Text(pr),
-                                selected: isSel,
-                                selectedColor: AppColors.travellerSoftMint,
-                                backgroundColor: AppColors.bgLight,
-                                labelStyle: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
-                                  color: isSel ? AppColors.travellerForestDark : AppColors.textMain,
-                                ),
-                                onSelected: (sel) {
-                                  setModalState(() => tempPrice = sel ? pr : 'All');
-                                },
-                              );
-                            }).toList(),
-                          ),
-
-                          const SizedBox(height: 20),
-
-                          // 4. Category
-                          const Text('Experience Category', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.travellerForestDark)),
-                          const SizedBox(height: 8),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: categoryItems.map((cat) {
-                              final catName = cat['name'] as String;
-                              final isSel = tempCategory == catName;
-                              return ChoiceChip(
-                                label: Text(catName),
-                                selected: isSel,
-                                selectedColor: AppColors.travellerSoftMint,
-                                backgroundColor: AppColors.bgLight,
-                                labelStyle: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
-                                  color: isSel ? AppColors.travellerForestDark : AppColors.textMain,
-                                ),
-                                onSelected: (sel) {
-                                  setModalState(() => tempCategory = sel ? catName : 'All');
-                                },
-                              );
-                            }).toList(),
-                          ),
-                          const SizedBox(height: 24),
-                        ],
-                      ),
-                    ),
-
-                    // Apply Button Sticky Bar
-                    Container(
-                      padding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.05),
-                            blurRadius: 10,
-                            offset: const Offset(0, -3),
-                          ),
-                        ],
-                      ),
-                      child: SafeArea(
-                        top: false,
-                        child: SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton(
-                            onPressed: () {
-                              setState(() {
-                                _selectedCategory = tempCategory;
-                                _selectedState = tempState;
-                                _selectedDuration = tempDuration;
-                                _selectedPriceRange = tempPrice;
-                              });
-                              Navigator.pop(context);
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.travellerForestDark,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                            ),
-                            child: Text(
-                              activeCount > 0 ? 'Apply Filters ($activeCount Active)' : 'Apply Filters',
-                              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                );
-              },
-            );
-          },
-        );
-      },
-    );
   }
 
   @override
@@ -535,19 +219,6 @@ class _ExploreHomeScreenState extends State<ExploreHomeScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.travellerForestDark,
         elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.favorite, color: Colors.redAccent),
-            tooltip: 'My Wishlist',
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const TravellerWishlistTab()),
-              );
-            },
-          ),
-          TravellerNotificationBell(),
-          const SizedBox(width: 4),
-        ],
         title: Row(
           children: [
             Container(
@@ -559,472 +230,743 @@ class _ExploreHomeScreenState extends State<ExploreHomeScreen> {
               child: ClipOval(
                 child: Image.asset(
                   'assets/images/app_logo.png',
-                  width: 28,
-                  height: 28,
+                  width: 24,
+                  height: 24,
                   fit: BoxFit.contain,
                 ),
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
             const Text(
               'THE LOCALS',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, letterSpacing: 1.2),
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 1.2),
             ),
           ],
         ),
+        actions: [
+          // Host a Trip Toggle / Direct Sign In Button (Requirement 10)
+          TextButton.icon(
+            onPressed: _showHostTripDialog,
+            icon: const Icon(Icons.nature_people, color: Color(0xFF6EE7B7), size: 16),
+            label: const Text(
+              'Host a Trip',
+              style: TextStyle(color: Color(0xFF6EE7B7), fontWeight: FontWeight.bold, fontSize: 12),
+            ),
+            style: TextButton.styleFrom(
+              backgroundColor: Colors.white.withValues(alpha: 0.12),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+          const SizedBox(width: 4),
+          IconButton(
+            icon: const Icon(Icons.favorite, color: Colors.redAccent, size: 20),
+            tooltip: 'My Wishlist',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const TravellerWishlistTab()),
+              );
+            },
+          ),
+          TravellerNotificationBell(),
+          const SizedBox(width: 4),
+        ],
       ),
-      body: Column(
-        children: [
-          // Sleek Header with Unified Search Capsule & State Filter
-          Container(
-            color: AppColors.travellerForestDark,
-            padding: const EdgeInsets.fromLTRB(16, 2, 16, 12),
-            child: Column(
-              children: [
-                // Unified Search Capsule with State Selector Pill + Dedicated Tune / Filter Button
-                Row(
+      body: TravelPatternBackground(
+        child: SingleChildScrollView(
+          physics: bespokeBouncingScrollPhysics,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // HERO BANNER SECTION (Requirements 3 & 4)
+              Container(
+                color: AppColors.travellerForestDark,
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.18),
-                            width: 1,
+                    // Badge: DISCOVER HIDDEN EXPERIENCES
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: const Color(0xFF6EE7B7).withValues(alpha: 0.4)),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.auto_awesome, color: Color(0xFF6EE7B7), size: 12),
+                          SizedBox(width: 5),
+                          Text(
+                            'DISCOVER HIDDEN EXPERIENCES',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF6EE7B7),
+                              letterSpacing: 1.2,
+                            ),
                           ),
-                        ),
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.search, color: Colors.white70, size: 20),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: TextField(
-                                controller: _searchController,
-                                onChanged: (_) => setState(() {}),
-                                style: const TextStyle(color: Colors.white, fontSize: 13),
-                                decoration: InputDecoration(
-                                  hintText: 'Search destinations, guides or titles...',
-                                  hintStyle: TextStyle(
-                                    color: Colors.white.withValues(alpha: 0.55),
-                                    fontSize: 13,
-                                  ),
-                                  border: InputBorder.none,
-                                  isDense: true,
-                                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                                ),
-                              ),
-                            ),
-                            if (_searchController.text.isNotEmpty)
-                              GestureDetector(
-                                onTap: () {
-                                  _searchController.clear();
-                                  setState(() {});
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.all(4),
-                                  margin: const EdgeInsets.only(right: 6),
-                                  child: const Icon(Icons.close, color: Colors.white60, size: 16),
-                                ),
-                              ),
-
-                            // State / Region Selector Pill Button
-                            SpringTapFeedback(
-                              onTap: _openStateFilterModal,
-                              scaleDown: 0.94,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: (_selectedState != 'All Regions' && _selectedState != 'All States')
-                                      ? AppColors.travellerSoftMint
-                                      : Colors.white.withValues(alpha: 0.18),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: (_selectedState != 'All Regions' && _selectedState != 'All States')
-                                        ? AppColors.travellerSoftMint
-                                        : Colors.white.withValues(alpha: 0.25),
-                                  ),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Icons.location_on,
-                                      size: 13,
-                                      color: (_selectedState != 'All Regions' && _selectedState != 'All States')
-                                          ? AppColors.travellerForestDark
-                                          : Colors.white,
-                                    ),
-                                    const SizedBox(width: 3),
-                                    ConstrainedBox(
-                                      constraints: const BoxConstraints(maxWidth: 72),
-                                      child: Text(
-                                        (_selectedState == 'All Regions' || _selectedState == 'All States') ? 'Region' : _selectedState,
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w700,
-                                          color: (_selectedState != 'All Regions' && _selectedState != 'All States')
-                                              ? AppColors.travellerForestDark
-                                              : Colors.white,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                    if (_selectedState != 'All Regions' && _selectedState != 'All States') ...[
-                                      const SizedBox(width: 3),
-                                      GestureDetector(
-                                        onTap: () => setState(() => _selectedState = 'All Regions'),
-                                        child: const Icon(
-                                          Icons.cancel,
-                                          size: 13,
-                                          color: AppColors.travellerForestDark,
-                                        ),
-                                      ),
-                                    ] else ...[
-                                      const SizedBox(width: 2),
-                                      const Icon(Icons.arrow_drop_down, color: Colors.white70, size: 16),
-                                    ],
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
+                        ],
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(height: 10),
 
-                    // Dedicated Tune / Filters Button
-                    SpringTapFeedback(
-                      onTap: _openFullFilterModal,
-                      scaleDown: 0.94,
-                      child: Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: _activeFiltersCount > 0 ? AppColors.travellerSoftMint : Colors.white.withValues(alpha: 0.16),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: _activeFiltersCount > 0 ? AppColors.travellerSoftMint : Colors.white.withValues(alpha: 0.25),
-                          ),
-                        ),
-                        child: Stack(
-                          clipBehavior: Clip.none,
-                          children: [
-                            Icon(
-                              Icons.tune,
-                              size: 20,
-                              color: _activeFiltersCount > 0 ? AppColors.travellerForestDark : Colors.white,
-                            ),
-                            if (_activeFiltersCount > 0)
-                              Positioned(
-                                top: -5,
-                                right: -5,
-                                child: Container(
-                                  padding: const EdgeInsets.all(3),
-                                  decoration: const BoxDecoration(
-                                    color: Colors.redAccent,
-                                    shape: BoxShape.circle,
-                                  ),
-                                  constraints: const BoxConstraints(minWidth: 15, minHeight: 15),
-                                  child: Text(
-                                    '$_activeFiltersCount',
-                                    style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
+                    // Title
+                    const Text(
+                      "What's your next story?",
+                      style: TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        letterSpacing: -0.5,
                       ),
                     ),
-                  ],
-                ),
-                if (_activeFiltersCount > 0) ...[
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    height: 26,
-                    child: ListView(
-                      scrollDirection: Axis.horizontal,
-                      physics: bespokeBouncingScrollPhysics,
+                    const SizedBox(height: 4),
+
+                    // Subtitle: Book curated, immersive experiences and intimate journeys led and guided by THE LOCALS
+                    const Text(
+                      'Book curated, immersive experiences and intimate journeys led and guided by THE LOCALS',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: Colors.white70,
+                        height: 1.35,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // SEARCH BAR (Requirement 4: placeholder "Search by experiences or location")
+                    Row(
                       children: [
-                        if (_selectedState != 'All Regions' && _selectedState != 'All States')
-                          Padding(
-                            padding: const EdgeInsets.only(right: 6),
-                            child: Chip(
-                              padding: EdgeInsets.zero,
-                              visualDensity: VisualDensity.compact,
-                              backgroundColor: AppColors.travellerSoftMint,
-                              label: Text('Region: $_selectedState', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.travellerForestDark)),
-                              deleteIcon: const Icon(Icons.close, size: 12, color: AppColors.travellerForestDark),
-                              onDeleted: () => setState(() => _selectedState = 'All Regions'),
+                        Expanded(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.search, color: Colors.white70, size: 18),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: TextField(
+                                    controller: _searchController,
+                                    onChanged: (_) => setState(() {}),
+                                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                                    decoration: InputDecoration(
+                                      hintText: 'Search by experiences or location',
+                                      hintStyle: TextStyle(
+                                        color: Colors.white.withValues(alpha: 0.55),
+                                        fontSize: 13,
+                                      ),
+                                      border: InputBorder.none,
+                                      isDense: true,
+                                      contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                                    ),
+                                  ),
+                                ),
+                                if (_searchController.text.isNotEmpty)
+                                  GestureDetector(
+                                    onTap: () {
+                                      _searchController.clear();
+                                      setState(() {});
+                                    },
+                                    child: const Icon(Icons.close, color: Colors.white70, size: 16),
+                                  ),
+                              ],
                             ),
                           ),
-                        if (_selectedDuration != 'All')
-                          Padding(
-                            padding: const EdgeInsets.only(right: 6),
-                            child: Chip(
-                              padding: EdgeInsets.zero,
-                              visualDensity: VisualDensity.compact,
-                              backgroundColor: AppColors.travellerSoftMint,
-                              label: Text('Duration: $_selectedDuration', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.travellerForestDark)),
-                              deleteIcon: const Icon(Icons.close, size: 12, color: AppColors.travellerForestDark),
-                              onDeleted: () => setState(() => _selectedDuration = 'All'),
+                        ),
+                        const SizedBox(width: 8),
+
+                        // Filters Toggle Button
+                        SpringTapFeedback(
+                          onTap: () => setState(() => _filterDrawerOpen = !_filterDrawerOpen),
+                          scaleDown: 0.94,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+                            decoration: BoxDecoration(
+                              color: (_activeFiltersCount > 0 || _filterDrawerOpen)
+                                  ? AppColors.travellerSoftMint
+                                  : Colors.white.withValues(alpha: 0.16),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: (_activeFiltersCount > 0 || _filterDrawerOpen)
+                                    ? AppColors.travellerSoftMint
+                                    : Colors.white.withValues(alpha: 0.25),
+                              ),
                             ),
-                          ),
-                        if (_selectedPriceRange != 'All')
-                          Padding(
-                            padding: const EdgeInsets.only(right: 6),
-                            child: Chip(
-                              padding: EdgeInsets.zero,
-                              visualDensity: VisualDensity.compact,
-                              backgroundColor: AppColors.travellerSoftMint,
-                              label: Text('Price: $_selectedPriceRange', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.travellerForestDark)),
-                              deleteIcon: const Icon(Icons.close, size: 12, color: AppColors.travellerForestDark),
-                              onDeleted: () => setState(() => _selectedPriceRange = 'All'),
-                            ),
-                          ),
-                        GestureDetector(
-                          onTap: _resetAllFilters,
-                          child: const Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                            child: Text(
-                              'Clear All',
-                              style: TextStyle(color: Colors.white70, fontSize: 11, decoration: TextDecoration.underline),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.tune,
+                                  size: 16,
+                                  color: (_activeFiltersCount > 0 || _filterDrawerOpen)
+                                      ? AppColors.travellerForestDark
+                                      : Colors.white,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  _activeFiltersCount > 0 ? 'Filters ($_activeFiltersCount)' : 'Filters',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: (_activeFiltersCount > 0 || _filterDrawerOpen)
+                                        ? AppColors.travellerForestDark
+                                        : Colors.white,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
                       ],
                     ),
-                  ),
-                ],
-                const SizedBox(height: 10),
 
-                // Uncrowded Horizontal Category Carousel with Icons
-                SizedBox(
-                  height: 34,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    physics: bespokeBouncingScrollPhysics,
-                    itemCount: categoryItems.length,
-                    separatorBuilder: (context, index) => const SizedBox(width: 8),
-                    itemBuilder: (context, idx) {
-                      final item = categoryItems[idx];
-                      final String catName = item['name'];
-                      final IconData catIcon = item['icon'];
-                      final isSel = _selectedCategory == catName;
-
-                      return SpringTapFeedback(
-                        scaleDown: 0.94,
-                        onTap: () => setState(() => _selectedCategory = catName),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: isSel
-                                ? AppColors.travellerSoftMint
-                                : Colors.white.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: isSel
-                                  ? AppColors.travellerSoftMint
-                                  : Colors.white.withValues(alpha: 0.2),
-                              width: 1,
+                    // Filter Drawer (Requirement 4: Max price, state/territory, destinations dropdown, category dropdown)
+                    if (_filterDrawerOpen) ...[
+                      const SizedBox(height: 14),
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.15),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
                             ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                catIcon,
-                                size: 14,
-                                color: isSel ? AppColors.travellerForestDark : Colors.white,
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // 1. Max Price Slider
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text('MAX PRICE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.textMuted)),
+                                Text('₹${_maxPrice.toInt()}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.travellerForestDark)),
+                              ],
+                            ),
+                            Slider(
+                              value: _maxPrice,
+                              min: 1000,
+                              max: 100000,
+                              divisions: 99,
+                              activeColor: AppColors.travellerForestDark,
+                              onChanged: (v) => setState(() => _maxPrice = v),
+                            ),
+                            const SizedBox(height: 8),
+
+                            // 2. State / Territory Dropdown
+                            const Text('STATE / TERRITORY', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.textMuted)),
+                            const SizedBox(height: 4),
+                            DropdownButtonFormField<String>(
+                              value: _selectedState,
+                              isDense: true,
+                              decoration: InputDecoration(
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                               ),
-                              const SizedBox(width: 5),
-                              Text(
-                                catName,
-                                style: TextStyle(
-                                  color: isSel ? AppColors.travellerForestDark : Colors.white,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
+                              items: ['All', ...indianStatesAndUTs, 'Nepal', 'Bhutan'].map((st) {
+                                return DropdownMenuItem(value: st, child: Text(st, style: const TextStyle(fontSize: 12)));
+                              }).toList(),
+                              onChanged: (v) => setState(() => _selectedState = v ?? 'All'),
+                            ),
+                            const SizedBox(height: 10),
+
+                            // 3. Destinations Dropdown (Requirement 4)
+                            const Text('DESTINATIONS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.textMuted)),
+                            const SizedBox(height: 4),
+                            DropdownButtonFormField<String>(
+                              value: _selectedDestination,
+                              isDense: true,
+                              decoration: InputDecoration(
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                              items: popularDestinations.map((dst) {
+                                return DropdownMenuItem(value: dst, child: Text(dst, style: const TextStyle(fontSize: 12)));
+                              }).toList(),
+                              onChanged: (v) => setState(() => _selectedDestination = v ?? 'All'),
+                            ),
+                            const SizedBox(height: 10),
+
+                            // 4. Category Dropdown (Requirement 4)
+                            const Text('CATEGORY', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.textMuted)),
+                            const SizedBox(height: 4),
+                            DropdownButtonFormField<String>(
+                              value: _selectedCategory,
+                              isDense: true,
+                              decoration: InputDecoration(
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                              items: exploreCategories.map((cat) {
+                                return DropdownMenuItem(value: cat, child: Text(cat, style: const TextStyle(fontSize: 12)));
+                              }).toList(),
+                              onChanged: (v) => setState(() => _selectedCategory = v ?? 'All'),
+                            ),
+                            const SizedBox(height: 12),
+
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                TextButton(
+                                  onPressed: _resetAllFilters,
+                                  child: const Text('Reset All', style: TextStyle(color: Colors.redAccent, fontSize: 12, fontWeight: FontWeight.bold)),
+                                ),
+                                ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.travellerForestDark,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                  ),
+                                  onPressed: () => setState(() => _filterDrawerOpen = false),
+                                  child: const Text('Close Filters', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+
+                    const SizedBox(height: 12),
+                    // Category Horizontal Chips
+                    SizedBox(
+                      height: 32,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        physics: bespokeBouncingScrollPhysics,
+                        itemCount: exploreCategories.length,
+                        separatorBuilder: (context, index) => const SizedBox(width: 6),
+                        itemBuilder: (context, idx) {
+                          final cat = exploreCategories[idx];
+                          final isSel = _selectedCategory == cat;
+                          return SpringTapFeedback(
+                            scaleDown: 0.94,
+                            onTap: () => setState(() => _selectedCategory = cat),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: isSel ? AppColors.travellerSoftMint : Colors.white.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: isSel ? AppColors.travellerSoftMint : Colors.white.withValues(alpha: 0.2),
                                 ),
                               ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
+                              child: Text(
+                                cat,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: isSel ? AppColors.travellerForestDark : Colors.white,
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ),
+              ),
 
-          // Itinerary List with Watermark Texture Background
-          Expanded(
-            child: TravelPatternBackground(
-              child: StreamBuilder<List<ExperienceModel>>(
+              // ZONAL EXPEDITIONS OF INDIA (Requirement 5)
+              StreamBuilder<List<ExperienceModel>>(
                 stream: _expRepo.getApprovedExperiencesStream(),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(
-                      child: CircularProgressIndicator(color: AppColors.travellerForestDark),
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 40),
+                      child: Center(child: CircularProgressIndicator(color: AppColors.travellerForestDark)),
                     );
                   }
 
-                  if (snapshot.hasError) {
-                    return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 28),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Colors.orange.withValues(alpha: 0.1),
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(Icons.cloud_off_rounded, size: 42, color: Colors.orange),
-                            ),
-                            const SizedBox(height: 14),
-                            const Text(
-                              'Unable to load expeditions',
-                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.travellerForestDark),
-                            ),
-                            const SizedBox(height: 6),
-                            const Text(
-                              'Please check your network connection or try again shortly.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(fontSize: 12, color: AppColors.textMuted),
-                            ),
-                            const SizedBox(height: 16),
-                            ElevatedButton.icon(
-                              onPressed: () => setState(() {}),
-                              icon: const Icon(Icons.refresh, size: 16, color: Colors.white),
-                              label: const Text('Retry', style: TextStyle(color: Colors.white)),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.travellerForestDark,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  }
-
-                  var list = snapshot.data ?? [];
+                  final allExp = snapshot.data ?? [];
 
                   // Filter logic
-                  if (_selectedCategory != 'All') {
-                    list = list
-                        .where((e) => e.category.toLowerCase() == _selectedCategory.toLowerCase())
-                        .toList();
-                  }
-                  if (_selectedState != 'All States' && _selectedState != 'All Regions') {
-                    final stQuery = _selectedState.toLowerCase();
-                    list = list
-                        .where((e) =>
-                            e.state.toLowerCase() == stQuery ||
-                            e.city.toLowerCase().contains(stQuery))
-                        .toList();
-                  }
-                  if (_selectedDuration != 'All') {
-                    list = list.where((e) {
-                      if (_selectedDuration == '1 Day') return e.durationDays == 1;
-                      if (_selectedDuration == '2–4 Days') return e.durationDays >= 2 && e.durationDays <= 4;
-                      if (_selectedDuration == '5–7 Days') return e.durationDays >= 5 && e.durationDays <= 7;
-                      if (_selectedDuration == '8+ Days') return e.durationDays >= 8;
-                      return true;
-                    }).toList();
-                  }
-                  if (_selectedPriceRange != 'All') {
-                    list = list.where((e) {
-                      if (_selectedPriceRange == 'Under ₹5k') return e.price <= 5000;
-                      if (_selectedPriceRange == '₹5k – ₹15k') return e.price > 5000 && e.price <= 15000;
-                      if (_selectedPriceRange == '₹15k – ₹30k') return e.price > 15000 && e.price <= 30000;
-                      if (_selectedPriceRange == '₹30k+') return e.price > 30000;
-                      return true;
-                    }).toList();
-                  }
-                  if (_searchController.text.trim().isNotEmpty) {
-                    final q = _searchController.text.trim().toLowerCase();
-                    list = list.where((e) =>
-                        e.title.toLowerCase().contains(q) ||
-                        e.city.toLowerCase().contains(q) ||
-                        e.state.toLowerCase().contains(q) ||
-                        e.guideName.toLowerCase().contains(q) ||
-                        e.description.toLowerCase().contains(q)).toList();
-                  }
+                  var filtered = allExp.where((exp) {
+                    if (_selectedCategory != 'All' && exp.category.toLowerCase() != _selectedCategory.toLowerCase()) {
+                      return false;
+                    }
+                    if (_selectedState != 'All' && _selectedState != 'All Regions') {
+                      final s = _selectedState.toLowerCase();
+                      if (!exp.state.toLowerCase().contains(s) && !exp.city.toLowerCase().contains(s)) {
+                        return false;
+                      }
+                    }
+                    if (_selectedDestination != 'All') {
+                      final d = _selectedDestination.toLowerCase();
+                      if (!exp.title.toLowerCase().contains(d) &&
+                          !exp.city.toLowerCase().contains(d) &&
+                          !exp.state.toLowerCase().contains(d)) {
+                        return false;
+                      }
+                    }
+                    if (exp.price > _maxPrice) {
+                      return false;
+                    }
+                    if (_searchController.text.trim().isNotEmpty) {
+                      final q = _searchController.text.trim().toLowerCase();
+                      if (!exp.title.toLowerCase().contains(q) &&
+                          !exp.city.toLowerCase().contains(q) &&
+                          !exp.state.toLowerCase().contains(q) &&
+                          !exp.guideName.toLowerCase().contains(q) &&
+                          !exp.description.toLowerCase().contains(q)) {
+                        return false;
+                      }
+                    }
+                    return true;
+                  }).toList();
 
-                  if (list.isEmpty) {
-                    return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 32),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(20),
-                              decoration: BoxDecoration(
-                                color: AppColors.travellerForestDark.withValues(alpha: 0.08),
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.landscape_outlined,
-                                size: 48,
-                                color: AppColors.travellerForestDark,
-                              ),
-                            ),
-                            const SizedBox(height: 14),
-                            const Text(
-                              'No expeditions found',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.travellerForestDark,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            const Text(
-                              'Try adjusting your search terms or choosing another state filter.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(fontSize: 12, color: AppColors.textMuted),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  }
+                  // Divide into 4 Indian Zonal Sections (Requirement 5)
+                  final northeastList = filtered.where((e) => _getExpeditionZone(e) == 'Northeast').toList();
+                  final northList = filtered.where((e) => _getExpeditionZone(e) == 'North').toList();
+                  final southList = filtered.where((e) => _getExpeditionZone(e) == 'South').toList();
+                  final westList = filtered.where((e) => _getExpeditionZone(e) == 'West').toList();
 
-                  return ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    physics: bespokeBouncingScrollPhysics,
-                    itemCount: list.length,
-                    itemBuilder: (context, idx) {
-                      final exp = list[idx];
-                      return _CompactExperienceCard(
-                        experience: exp,
-                        onTap: () {
-                          ExperienceDetailModal.show(context, exp);
-                        },
-                      ).staggeredEntrance(index: idx);
-                    },
+                  return Column(
+                    children: [
+                      _buildZoneSection('Northeast Expeditions', '🌲', 'Living roots, high passes, sacred monasteries & untouched valleys', northeastList),
+                      _buildZoneSection('North Expeditions', '🏔️', 'Himalayan ridges, ancient trade trails & remote mountain homestays', northList),
+                      _buildZoneSection('South Expeditions', '🌴', 'Western Ghats rainforests, spice trails & coastal native cultures', southList),
+                      _buildZoneSection('West Expeditions', '🏜️', 'Sahyadri cliffside forts, Thar sands & indigenous desert heritage', westList),
+                    ],
                   );
                 },
               ),
+
+              // WHY CHOOSE THE LOCALS (Requirement 6)
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF0F172A), Color(0xFF022C22)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.25),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF065F46).withValues(alpha: 0.6),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFF34D399).withValues(alpha: 0.4)),
+                      ),
+                      child: const Text(
+                        'WHY CHOOSE THE LOCALS',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF34D399),
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    const Text(
+                      'Conscious Exploration Led by Native Voices',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'We are not a mass-commercial travel agency. Here is why our project is fundamentally different:',
+                      style: TextStyle(fontSize: 12, color: Colors.white70, height: 1.35),
+                    ),
+                    const SizedBox(height: 16),
+
+                    _buildWhyChoosePoint(
+                      num: '1',
+                      title: '100% Native & Verified Local Hosts',
+                      desc: 'Every expedition is led by born-and-raised indigenous mountain residents, certified guides, and elder storytellers. Never outsourced city contractors.',
+                      badgeColor: const Color(0xFF10B981),
+                    ),
+                    const SizedBox(height: 12),
+
+                    _buildWhyChoosePoint(
+                      num: '2',
+                      title: 'Intimate Micro-Groups & Slow Travel',
+                      desc: 'Strict caps of 2 to 8 explorers ensure deep immersion, respectful footprint on fragile ecosystems, and meaningful relationships with host families.',
+                      badgeColor: const Color(0xFF38BDF8),
+                    ),
+                    const SizedBox(height: 12),
+
+                    _buildWhyChoosePoint(
+                      num: '3',
+                      title: 'Direct Grassroots Economic Impact',
+                      desc: 'Over 85% of expedition payments stay directly inside remote valleys with homestay cooks, porters, and artisan families, keeping villages alive.',
+                      badgeColor: const Color(0xFFF59E0B),
+                    ),
+                    const SizedBox(height: 12),
+
+                    _buildWhyChoosePoint(
+                      num: '4',
+                      title: 'Uncommercialized Secret Trails',
+                      desc: 'Escape mass-tourism crowds. Discover hidden sacred ridges, ancestral forager paths, forgotten monastic valleys, and authentic harvest festivals.',
+                      badgeColor: const Color(0xFFF43F5E),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Brand Pillars Banner (Requirement 7)
+                    Container(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.15))),
+                      ),
+                      child: const Text(
+                        'Locals ★ Offbeat ★ Immersive ★ Slow and Sustainable',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF6EE7B7),
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // BOTTOM FOOTER SECTION (Requirement 8)
+              Container(
+                color: const Color(0xFF0F172A),
+                padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'THE LOCALS',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Curated expeditions led by verified indigenous hosts.',
+                      style: TextStyle(fontSize: 12, color: Colors.white60),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Famous 4 Best Expeditions (Requirement 8)
+                    const Text(
+                      'MOST FAMOUS EXPEDITIONS',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF6EE7B7), letterSpacing: 1.0),
+                    ),
+                    const SizedBox(height: 10),
+
+                    _buildFamousExpeditionItem('Roopkund Mystery Lake Expedition', 'Uttarakhand · 8 Days', '₹18,500'),
+                    _buildFamousExpeditionItem('Chadar Frozen River Trek', 'Zanskar, Ladakh · 9 Days', '₹28,000'),
+                    _buildFamousExpeditionItem('Dzukou Valley & Hornbill Trail', 'Nagaland · 6 Days', '₹16,200'),
+                    _buildFamousExpeditionItem('Markha Valley Wildlife Trail', 'Hemis, Ladakh · 7 Days', '₹19,800'),
+
+                    const SizedBox(height: 20),
+                    const Divider(color: Colors.white12),
+                    const SizedBox(height: 12),
+
+                    // Contact Us Email (Requirement 8)
+                    Row(
+                      children: const [
+                        Icon(Icons.email_outlined, color: Color(0xFF6EE7B7), size: 16),
+                        SizedBox(width: 8),
+                        Text(
+                          'Contact Us: support@thelocals.in',
+                          style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      '© 2026 THE LOCALS. All rights reserved.',
+                      style: TextStyle(color: Colors.white38, fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildZoneSection(String title, String emoji, String tagline, List<ExperienceModel> exps) {
+    if (exps.isEmpty && (_searchController.text.isNotEmpty || _selectedCategory != 'All' || _selectedState != 'All')) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(emoji, style: const TextStyle(fontSize: 22)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textMain,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.travellerLightMint,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            '${exps.length}',
+                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.travellerForestDark),
+                          ),
+                        ),
+                      ],
+                    ),
+                    Text(
+                      tagline,
+                      style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          if (exps.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(16),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.7),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.black12),
+              ),
+              child: Text(
+                'New local hosts in $title are onboarding soon. Check back shortly!',
+                style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+                textAlign: TextAlign.center,
+              ),
+            )
+          else
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: exps.length,
+              itemBuilder: (context, idx) {
+                final exp = exps[idx];
+                return _CompactExperienceCard(
+                  experience: exp,
+                  onTap: () => ExperienceDetailModal.show(context, exp),
+                );
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWhyChoosePoint({
+    required String num,
+    required String title,
+    required String desc,
+    required Color badgeColor,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 24,
+          height: 24,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: badgeColor.withValues(alpha: 0.2),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: badgeColor),
+          ),
+          child: Text(
+            num,
+            style: TextStyle(color: badgeColor, fontWeight: FontWeight.bold, fontSize: 12),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                desc,
+                style: const TextStyle(fontSize: 12, color: Colors.white70, height: 1.35),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFamousExpeditionItem(String title, String subtitle, String price) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
+                Text(subtitle, style: const TextStyle(color: Colors.white60, fontSize: 11)),
+              ],
             ),
           ),
+          Text(price, style: const TextStyle(color: Color(0xFF6EE7B7), fontWeight: FontWeight.bold, fontSize: 13)),
         ],
       ),
     );
   }
 }
 
-/// A compact horizontal split experience card (~125px height) designed to display
-/// 3-4 expeditions simultaneously on a phone screen without overcrowding.
 class _CompactExperienceCard extends StatelessWidget {
   final ExperienceModel experience;
   final VoidCallback onTap;
@@ -1050,140 +992,151 @@ class _CompactExperienceCard extends StatelessWidget {
         width: 1,
       ),
       child: Container(
-        height: 126,
-        padding: const EdgeInsets.all(10),
+        height: 125,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+        ),
         child: Row(
           children: [
-            // Left Content Side (Expanded details)
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            // Left thumbnail image
+            ClipRRect(
+              borderRadius: const BorderRadius.horizontal(left: Radius.circular(16)),
+              child: Stack(
                 children: [
-                  // Top Row: Location pin and category pill
-                  Row(
-                    children: [
-                      const Icon(Icons.location_on, size: 12, color: AppColors.brandOrange),
-                      const SizedBox(width: 3),
-                      Expanded(
-                        child: Text(
-                          '${experience.city}, ${experience.state}',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textMuted,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                  CachedNetworkImage(
+                    imageUrl: coverImage,
+                    width: 120,
+                    height: 125,
+                    fit: BoxFit.cover,
+                    placeholder: (context, url) => Container(
+                      width: 120,
+                      height: 125,
+                      color: Colors.grey.shade200,
+                      child: const Center(
+                        child: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.travellerForestDark),
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: AppColors.travellerForestDark.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          experience.category.toUpperCase(),
-                          style: const TextStyle(
-                            color: AppColors.travellerForestDark,
-                            fontSize: 9,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.4,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  // Middle: Expedition Title (2 lines max)
-                  Text(
-                    experience.title,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.travellerForestDark,
-                      height: 1.22,
                     ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+                    errorWidget: (context, url, error) => Container(
+                      width: 120,
+                      height: 125,
+                      color: Colors.grey.shade200,
+                      child: const Icon(Icons.broken_image, color: Colors.grey),
+                    ),
                   ),
-
-                  // Bottom Row: Duration, Guide name, and Price
-                  Row(
-                    children: [
-                      // Duration badge
-                      Icon(Icons.schedule, size: 12, color: Colors.grey.shade600),
-                      const SizedBox(width: 3),
-                      Text(
-                        '${experience.durationDays}D/${experience.durationNights}N',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.grey.shade700,
-                        ),
+                  Positioned(
+                    top: 8,
+                    left: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.65),
+                        borderRadius: BorderRadius.circular(6),
                       ),
-                      const SizedBox(width: 6),
-                      Text('•', style: TextStyle(color: Colors.grey.shade400, fontSize: 12)),
-                      const SizedBox(width: 6),
-
-                      // Guide name
-                      Expanded(
-                        child: Text(
-                          experience.guideName,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                            color: AppColors.textMain,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-
-                      // Price
-                      Text(
-                        '₹${experience.price.toInt()}',
+                      child: Text(
+                        experience.category,
                         style: const TextStyle(
-                          fontSize: 15,
+                          color: Colors.white,
+                          fontSize: 9,
                           fontWeight: FontWeight.bold,
-                          color: AppColors.brandGreen,
+                          letterSpacing: 0.3,
                         ),
                       ),
-                    ],
+                    ),
                   ),
                 ],
               ),
             ),
 
-            const SizedBox(width: 10),
-
-            // Right Thumbnail Photo (106x106 rounded)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(14),
-              child: SizedBox(
-                width: 106,
-                height: 106,
-                child: CachedNetworkImage(
-                  imageUrl: coverImage,
-                  fit: BoxFit.cover,
-                  placeholder: (context, url) => Container(
-                    color: AppColors.travellerForestDark.withValues(alpha: 0.08),
-                    child: const Center(
-                      child: SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: AppColors.travellerForestDark,
+            // Right details
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.location_on, size: 12, color: AppColors.travellerForestDark),
+                            const SizedBox(width: 3),
+                            Expanded(
+                              child: Text(
+                                '${experience.city}, ${experience.state}',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.travellerForestDark,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.amber.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.star, size: 11, color: Colors.amber),
+                                  const SizedBox(width: 2),
+                                  Text(
+                                    experience.guideRating > 0 ? experience.guideRating.toStringAsFixed(1) : '5.0',
+                                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black87),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
+                        const SizedBox(height: 4),
+                        Text(
+                          experience.title,
+                          style: const TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textMain,
+                            height: 1.2,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                     ),
-                  ),
-                  errorWidget: (context, url, error) => Container(
-                    color: AppColors.travellerForestDark.withValues(alpha: 0.1),
-                    child: const Icon(Icons.image, color: Colors.grey, size: 32),
-                  ),
+
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.schedule, size: 12, color: AppColors.textMuted),
+                            const SizedBox(width: 3),
+                            Text(
+                              '${experience.durationDays} ${experience.durationDays == 1 ? "Day" : "Days"}',
+                              style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                            ),
+                          ],
+                        ),
+                        Text(
+                          '₹${experience.price.toInt()}',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.travellerForestDark,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
             ),

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../widgets/cinematic_scenic_background.dart';
 import '../widgets/spring_interactions.dart';
 import 'login_screen.dart';
+import 'traveller/traveller_main_screen.dart';
 
 class RoleSelectionScreen extends StatelessWidget {
   const RoleSelectionScreen({super.key});
@@ -93,7 +94,7 @@ class RoleSelectionScreen extends StatelessWidget {
                 // Frosted Glassmorphism Traveller Role Card
                 _GlassRoleCard(
                   title: 'Book an experience',
-                  subtitle: 'Discover authentic guided expeditions, hidden valleys & verified local hosts',
+                  subtitle: 'Discover authentic guided expeditions, curated immersive experiences and verified local hosts',
                   badge: 'EXPLORE',
                   icon: Icons.backpack_outlined,
                   accentColor: const Color(0xFF38BDF8),
@@ -104,7 +105,7 @@ class RoleSelectionScreen extends StatelessWidget {
                   onTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (_) => const LoginScreen(role: 'traveller'),
+                        builder: (_) => const TravellerMainScreen(),
                       ),
                     );
                   },
@@ -114,7 +115,7 @@ class RoleSelectionScreen extends StatelessWidget {
                 // Frosted Glassmorphism Guide Role Card
                 _GlassRoleCard(
                   title: 'Host an experience',
-                  subtitle: 'Create itineraries, host expeditions & lead travellers through your homeland',
+                  subtitle: 'Create itineraries, host experiences and lead the travellers through your local homeland',
                   badge: 'HOST & GUIDE',
                   icon: Icons.nature_people_outlined,
                   accentColor: const Color(0xFF34D399),
@@ -135,7 +136,7 @@ class RoleSelectionScreen extends StatelessWidget {
 
                 // Signature brand pillars footer
                 Text(
-                  'Offbeat ★ Immersive ★ Sustainable ★ Travel and Learn',
+                  'Locals ★ Offbeat ★ Immersive ★ Slow and Sustainable',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 11,

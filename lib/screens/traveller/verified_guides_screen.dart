@@ -6,8 +6,6 @@ import '../../theme/app_colors.dart';
 import '../../widgets/spring_interactions.dart';
 import 'guide_public_profile_screen.dart';
 
-/// Screen listing all verified local guides on the platform.
-/// Travellers can search, inspect guide profiles, and view all itineraries hosted by each guide.
 class VerifiedGuidesScreen extends StatefulWidget {
   const VerifiedGuidesScreen({super.key});
 
@@ -23,6 +21,51 @@ class _VerifiedGuidesScreenState extends State<VerifiedGuidesScreen> {
   void dispose() {
     _searchCtrl.dispose();
     super.dispose();
+  }
+
+  String _getGuideZone(UserModel guide) {
+    final state = guide.state.toLowerCase();
+    final city = guide.city.toLowerCase();
+    final bio = guide.bio.toLowerCase();
+    final text = '$state $city $bio';
+
+    // Northeast
+    if (text.contains('assam') ||
+        text.contains('meghalaya') ||
+        text.contains('arunachal') ||
+        text.contains('sikkim') ||
+        text.contains('nagaland') ||
+        text.contains('manipur') ||
+        text.contains('mizoram') ||
+        text.contains('tripura') ||
+        text.contains('nepal') ||
+        text.contains('bhutan')) {
+      return 'Northeast';
+    }
+
+    // South
+    if (text.contains('kerala') ||
+        text.contains('tamil') ||
+        text.contains('karnataka') ||
+        text.contains('goa') ||
+        text.contains('andhra') ||
+        text.contains('telangana') ||
+        text.contains('wayanad') ||
+        text.contains('coorg')) {
+      return 'South';
+    }
+
+    // West
+    if (text.contains('maharashtra') ||
+        text.contains('gujarat') ||
+        text.contains('pune') ||
+        text.contains('mumbai') ||
+        text.contains('sahyadri')) {
+      return 'West';
+    }
+
+    // North (default)
+    return 'North';
   }
 
   @override
@@ -46,7 +89,7 @@ class _VerifiedGuidesScreenState extends State<VerifiedGuidesScreen> {
               ),
             ),
             Text(
-              'Aadhaar verified hosts & expedition leaders',
+              'Aadhaar verified hosts & expedition leaders across India',
               style: TextStyle(
                 color: Color(0xFF6EE7B7),
                 fontSize: 11,
@@ -62,7 +105,7 @@ class _VerifiedGuidesScreenState extends State<VerifiedGuidesScreen> {
       ),
       body: Column(
         children: [
-          // Search & Filter Header Bar
+          // Search Header Bar
           Container(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
             decoration: BoxDecoration(
@@ -111,7 +154,7 @@ class _VerifiedGuidesScreenState extends State<VerifiedGuidesScreen> {
             ),
           ),
 
-          // Guides Stream List
+          // Guides List Divided into Zonal Sections (Requirement 9)
           Expanded(
             child: StreamBuilder<List<UserModel>>(
               stream: authRepo.getGuidesStream(),
@@ -139,30 +182,28 @@ class _VerifiedGuidesScreenState extends State<VerifiedGuidesScreen> {
                   final matchName = guide.name.toLowerCase().contains(_searchQuery);
                   final matchCity = guide.city.toLowerCase().contains(_searchQuery);
                   final matchState = guide.state.toLowerCase().contains(_searchQuery);
-                  final matchLang = guide.languages.any((l) => l.toLowerCase().contains(_searchQuery));
-                  return matchName || matchCity || matchState || matchLang;
+                  final matchBio = guide.bio.toLowerCase().contains(_searchQuery);
+                  return matchName || matchCity || matchState || matchBio;
                 }).toList();
 
                 if (filteredGuides.isEmpty) {
-                  return Center(
+                  return const Center(
                     child: Padding(
-                      padding: const EdgeInsets.all(32.0),
+                      padding: EdgeInsets.all(32.0),
                       child: Column(
-                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.person_search_outlined, size: 56, color: Colors.grey.shade400),
-                          const SizedBox(height: 12),
-                          const Text(
-                            'No Verified Guides Found',
+                          Icon(Icons.person_search_outlined, size: 48, color: AppColors.textMuted),
+                          SizedBox(height: 12),
+                          Text(
+                            'No guides found',
                             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textMain),
                           ),
-                          const SizedBox(height: 6),
+                          SizedBox(height: 6),
                           Text(
-                            _searchQuery.isNotEmpty
-                                ? 'No guides match "$_searchQuery". Try searching for another city or name.'
-                                : 'No verified guides are currently listed. Please check back soon!',
+                            'Try searching with a different name, city, or region.',
                             textAlign: TextAlign.center,
-                            style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+                            style: TextStyle(color: AppColors.textMuted, fontSize: 13),
                           ),
                         ],
                       ),
@@ -170,14 +211,20 @@ class _VerifiedGuidesScreenState extends State<VerifiedGuidesScreen> {
                   );
                 }
 
-                return ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                final northeastGuides = filteredGuides.where((g) => _getGuideZone(g) == 'Northeast').toList();
+                final northGuides = filteredGuides.where((g) => _getGuideZone(g) == 'North').toList();
+                final southGuides = filteredGuides.where((g) => _getGuideZone(g) == 'South').toList();
+                final westGuides = filteredGuides.where((g) => _getGuideZone(g) == 'West').toList();
+
+                return ListView(
                   physics: bespokeBouncingScrollPhysics,
-                  itemCount: filteredGuides.length,
-                  itemBuilder: (context, index) {
-                    final guide = filteredGuides[index];
-                    return _GuideCard(guide: guide).staggeredEntrance(index: index);
-                  },
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+                  children: [
+                    _buildZoneSection('Northeast Guides', '🌲', 'Native hosts of the seven sisters, Sikkim, Nepal & Bhutan', northeastGuides),
+                    _buildZoneSection('North Guides', '🏔️', 'Himalayan mountaineers, high-altitude passes & valley storytellers', northGuides),
+                    _buildZoneSection('South Guides', '🌴', 'Western Ghats foragers, coastal navigators & spice naturalists', southGuides),
+                    _buildZoneSection('West Guides', '🏜️', 'Sahyadri fort historians & desert wilderness leaders', westGuides),
+                  ],
                 );
               },
             ),
@@ -186,205 +233,166 @@ class _VerifiedGuidesScreenState extends State<VerifiedGuidesScreen> {
       ),
     );
   }
-}
 
-class _GuideCard extends StatelessWidget {
-  final UserModel guide;
+  Widget _buildZoneSection(String title, String emoji, String tagline, List<UserModel> guides) {
+    if (guides.isEmpty && _searchQuery.isNotEmpty) {
+      return const SizedBox.shrink();
+    }
 
-  const _GuideCard({required this.guide});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      child: SpringCard(
-        borderRadius: 16,
-        scaleDown: 0.98,
-        onTap: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => GuidePublicProfileScreen(guide: guide),
-            ),
-          );
-        },
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.cardBorder.withValues(alpha: 0.7)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 10,
-                offset: const Offset(0, 3),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              // Top Row: Avatar, Name, Location & Verified Badge
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  CircleAvatar(
-                    radius: 28,
-                    backgroundColor: AppColors.travellerForestDark,
-                    backgroundImage: guide.profilePicUrl.isNotEmpty
-                        ? CachedNetworkImageProvider(guide.profilePicUrl)
-                        : null,
-                    child: guide.profilePicUrl.isEmpty
-                        ? Text(
-                            guide.name.isNotEmpty ? guide.name[0].toUpperCase() : 'G',
-                            style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-                          )
-                        : null,
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+              Text(emoji, style: const TextStyle(fontSize: 20)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       children: [
-                        Row(
-                          children: [
-                            Flexible(
-                              child: Text(
-                                guide.name,
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.textMain,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            const Icon(Icons.verified, color: AppColors.brandGreen, size: 18),
-                          ],
+                        Text(
+                          title,
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textMain),
                         ),
-                        const SizedBox(height: 3),
-                        Row(
-                          children: [
-                            const Icon(Icons.location_on, size: 13, color: AppColors.brandGreen),
-                            const SizedBox(width: 3),
-                            Expanded(
-                              child: Text(
-                                guide.city.isNotEmpty
-                                    ? '${guide.city}, ${guide.state}'
-                                    : (guide.state.isNotEmpty ? guide.state : 'Local Explorer'),
-                                style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: AppColors.brandGreen.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: const Text(
-                                'Aadhaar Verified',
-                                style: TextStyle(
-                                  color: AppColors.brandGreen,
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              '${guide.experienceYears > 0 ? guide.experienceYears : 3}+ Yrs Exp',
-                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.headerNavy),
-                            ),
-                          ],
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFECFDF5),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFFA7F3D0)),
+                          ),
+                          child: Text(
+                            '${guides.length}',
+                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF065F46)),
+                          ),
                         ),
                       ],
                     ),
-                  ),
-                  Row(
-                    children: [
-                      const Icon(Icons.star, color: Colors.amber, size: 15),
-                      const SizedBox(width: 3),
-                      Text(
-                        guide.rating > 0 ? guide.rating.toStringAsFixed(1) : '4.9',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.textMain),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-
-              // Bio excerpt if available
-              if (guide.bio.isNotEmpty) ...[
-                const SizedBox(height: 10),
-                Text(
-                  guide.bio,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 12, color: AppColors.textMuted, height: 1.35),
+                    Text(tagline, style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
+                  ],
                 ),
-              ],
-
-              // Languages Spoken Chips
-              if (guide.languages.isNotEmpty) ...[
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 4,
-                  children: guide.languages.take(3).map((lang) {
-                    return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: AppColors.bgLight,
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: AppColors.cardBorder),
-                      ),
-                      child: Text(
-                        lang,
-                        style: const TextStyle(fontSize: 10, color: AppColors.textMain, fontWeight: FontWeight.w500),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ],
-
-              const SizedBox(height: 12),
-              const Divider(height: 1),
-              const SizedBox(height: 10),
-
-              // Bottom Row CTA
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: const [
-                  Text(
-                    'Explore hosted journeys & bio',
-                    style: TextStyle(fontSize: 11, color: AppColors.textMuted, fontWeight: FontWeight.w500),
-                  ),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'View Profile',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.brandGreen,
-                        ),
-                      ),
-                      SizedBox(width: 4),
-                      Icon(Icons.arrow_forward, size: 13, color: AppColors.brandGreen),
-                    ],
-                  ),
-                ],
               ),
             ],
           ),
+          const SizedBox(height: 10),
+
+          if (guides.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(14),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.black12),
+              ),
+              child: Text(
+                'New verified guides for $title are onboarding soon.',
+                style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+              ),
+            )
+          else
+            ...guides.map((g) => _buildGuideCard(g)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGuideCard(UserModel guide) {
+    final avatar = guide.profilePicUrl.isNotEmpty
+        ? guide.profilePicUrl
+        : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80';
+
+    return SpringCard(
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => GuidePublicProfileScreen(guide: guide)),
+        );
+      },
+      borderRadius: 14,
+      margin: const EdgeInsets.only(bottom: 10),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.cardBorder),
+        ),
+        child: Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: CachedNetworkImage(
+                imageUrl: avatar,
+                width: 60,
+                height: 60,
+                fit: BoxFit.cover,
+                errorWidget: (context, url, error) => Container(
+                  width: 60,
+                  height: 60,
+                  color: Colors.grey.shade200,
+                  child: const Icon(Icons.person, color: Colors.grey),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          guide.name,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textMain),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (guide.verified) ...[
+                        const SizedBox(width: 4),
+                        const Icon(Icons.verified, size: 15, color: Color(0xFF059669)),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${guide.city.isNotEmpty ? "${guide.city}, " : ""}${guide.state}',
+                    style: const TextStyle(fontSize: 11.5, color: AppColors.textMuted),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      if (guide.experienceYears > 0) ...[
+                        Text(
+                          '${guide.experienceYears} yrs exp · ',
+                          style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: Color(0xFF059669)),
+                        ),
+                      ],
+                      const Icon(Icons.star, size: 12, color: Colors.amber),
+                      const SizedBox(width: 2),
+                      Text(
+                        guide.rating > 0 ? guide.rating.toStringAsFixed(1) : '5.0',
+                        style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold),
+                      ),
+                      Text(
+                        ' (${guide.totalReviews})',
+                        style: const TextStyle(fontSize: 10, color: AppColors.textMuted),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: AppColors.textMuted, size: 20),
+          ],
         ),
       ),
     );

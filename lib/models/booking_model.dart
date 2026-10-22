@@ -54,8 +54,12 @@ class BookingModel {
       guideId: map['guideId'] ?? map['guide_id'] ?? map['hostId'] ?? map['guideUID'] ?? '',
       guideName: map['guideName'] ?? map['hostName'] ?? '',
       guideEmail: map['guideEmail'] ?? map['hostEmail'] ?? '',
-      bookingDate: map['bookingDate'] ?? map['date'] ?? map['startDate'] ?? map['bookingTime'] ?? '',
-      numberOfTravelers: (map['numberOfTravelers'] as num?)?.toInt() ?? (map['guests'] as num?)?.toInt() ?? (map['guestsCount'] as num?)?.toInt() ?? (map['pax'] as num?)?.toInt() ?? 1,
+      bookingDate: map['bookingDate'] ?? map['startDate'] ?? map['date'] ?? map['bookingTime'] ?? '',
+      numberOfTravelers: (map['numberOfTravelers'] as num?)?.toInt() ?? 
+                         (map['guestCount'] as num?)?.toInt() ?? 
+                         (map['guestsCount'] as num?)?.toInt() ?? 
+                         (map['guests'] as num?)?.toInt() ?? 
+                         (map['pax'] as num?)?.toInt() ?? 1,
       totalPrice: (map['totalPrice'] as num?)?.toDouble() ?? (map['totalAmount'] as num?)?.toDouble() ?? (map['amount'] as num?)?.toDouble() ?? (map['price'] as num?)?.toDouble() ?? 0.0,
       status: (map['status'] ?? map['bookingStatus'] ?? 'pending').toString().toLowerCase(),
       paymentStatus: (map['paymentStatus'] ?? (map['paymentId'] != null && (map['paymentId'] as String).isNotEmpty ? 'paid' : 'unpaid')).toString().toLowerCase(),
@@ -79,7 +83,9 @@ class BookingModel {
       'guideName': guideName,
       'guideEmail': guideEmail,
       'bookingDate': bookingDate,
+      'startDate': bookingDate,
       'numberOfTravelers': numberOfTravelers,
+      'guestCount': numberOfTravelers,
       'totalPrice': totalPrice,
       'status': status,
       'paymentStatus': paymentStatus,

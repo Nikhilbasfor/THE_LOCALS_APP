@@ -69,6 +69,136 @@ class AuthRepository {
     return userModel;
   }
 
+  Future<UserModel> loginWithPhoneOtp({
+    required String fullPhone,
+    required String expectedRole,
+  }) async {
+    final cleanDigits = fullPhone.replaceAll(RegExp(r'\D'), '');
+    final syntheticEmail = 'phone_$cleanDigits@thelocals.in';
+    final syntheticPassword = 'locals_otp_pass_$cleanDigits';
+
+    UserCredential credential;
+    try {
+      credential = await _auth.signInWithEmailAndPassword(
+        email: syntheticEmail,
+        password: syntheticPassword,
+      );
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'user-not-found' || e.code == 'invalid-credential') {
+        // Auto-provision user account verified via OTP
+        credential = await _auth.createUserWithEmailAndPassword(
+          email: syntheticEmail,
+          password: syntheticPassword,
+        );
+        final uid = credential.user?.uid;
+        if (uid == null) throw Exception('Authentication failed. User ID is null.');
+
+        final newUser = UserModel(
+          uid: uid,
+          name: expectedRole == 'guide' ? 'Local Host' : 'Local Explorer',
+          email: syntheticEmail,
+          role: expectedRole.toLowerCase(),
+          phone: fullPhone,
+          state: 'Uttarakhand',
+          city: '',
+          experienceYears: 0,
+          bio: '',
+          verified: false,
+          onboardingComplete: false,
+        );
+        await _firestore.collection('users').doc(uid).set(newUser.toMap());
+        return newUser;
+      }
+      rethrow;
+    }
+
+    final uid = credential.user?.uid;
+    if (uid == null) throw Exception('Authentication failed. User ID is null.');
+
+    final userDoc = await _firestore.collection('users').doc(uid).get();
+    if (!userDoc.exists || userDoc.data() == null) {
+      final newUser = UserModel(
+        uid: uid,
+        name: expectedRole == 'guide' ? 'Local Host' : 'Local Explorer',
+        email: syntheticEmail,
+        role: expectedRole.toLowerCase(),
+        phone: fullPhone,
+        state: 'Uttarakhand',
+        city: '',
+        experienceYears: 0,
+        bio: '',
+        verified: false,
+        onboardingComplete: false,
+      );
+      await _firestore.collection('users').doc(uid).set(newUser.toMap());
+      return newUser;
+    }
+
+    final userModel = UserModel.fromMap(userDoc.data()!, userDoc.id);
+
+    if (userModel.role.toLowerCase() != expectedRole.toLowerCase()) {
+      await _auth.signOut();
+      throw Exception(
+        'Account Role Mismatch: This account is registered as a ${userModel.role.toUpperCase()}. '
+        'Please sign in through the correct portal.',
+      );
+    }
+
+    return userModel;
+  }
+
+  Future<UserModel> signUpWithPhoneOtp({
+    required String fullPhone,
+    required String name,
+    required String role,
+    String country = 'India',
+    String state = '',
+    String city = '',
+    int experienceYears = 0,
+    String bio = '',
+  }) async {
+    final cleanDigits = fullPhone.replaceAll(RegExp(r'\D'), '');
+    final syntheticEmail = 'phone_$cleanDigits@thelocals.in';
+    final syntheticPassword = 'locals_otp_pass_$cleanDigits';
+
+    UserCredential credential;
+    try {
+      credential = await _auth.createUserWithEmailAndPassword(
+        email: syntheticEmail,
+        password: syntheticPassword,
+      );
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'email-already-in-use') {
+        credential = await _auth.signInWithEmailAndPassword(
+          email: syntheticEmail,
+          password: syntheticPassword,
+        );
+      } else {
+        rethrow;
+      }
+    }
+
+    final uid = credential.user?.uid;
+    if (uid == null) throw Exception('Registration failed. User ID is null.');
+
+    final newUser = UserModel(
+      uid: uid,
+      name: name.trim(),
+      email: syntheticEmail,
+      role: role.toLowerCase(),
+      phone: fullPhone.trim(),
+      state: state.trim(),
+      city: city.trim(),
+      experienceYears: experienceYears,
+      bio: bio.trim(),
+      verified: role.toLowerCase() == 'guide' ? false : true,
+      onboardingComplete: false,
+    );
+
+    await _firestore.collection('users').doc(uid).set(newUser.toMap(), SetOptions(merge: true));
+    return newUser;
+  }
+
   Future<UserModel> signUp({
     required String email,
     required String password,

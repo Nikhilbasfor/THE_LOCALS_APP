@@ -19,8 +19,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
   bool _isProcessing = false;
   late Razorpay _razorpay;
 
-  final _upiController = TextEditingController(text: 'user@upi');
-  final _cardNumController = TextEditingController(text: '4532 •••• •••• 8892');
+  final _upiController = TextEditingController();
+  final _cardNumController = TextEditingController();
 
   BookingModel get booking => widget.booking;
 
@@ -234,11 +234,19 @@ class _PaymentScreenState extends State<PaymentScreen> {
             const SizedBox(height: 24),
 
             const Text('SELECT PAYMENT METHOD', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textMuted, letterSpacing: 1.0)),
-            const SizedBox(height: 12),
-
-            _buildPaymentOption('RAZORPAY', 'Razorpay Gateway (UPI, Cards, NetBanking, Wallets)', Icons.verified_user),
-            _buildPaymentOption('UPI', 'Manual UPI ID / VPA Entry', Icons.qr_code_2),
-            _buildPaymentOption('CARD', 'Credit / Debit Cards Direct', Icons.credit_card),
+            RadioGroup<String>(
+              groupValue: _selectedPaymentMethod,
+              onChanged: (val) {
+                if (val != null) setState(() => _selectedPaymentMethod = val);
+              },
+              child: Column(
+                children: [
+                  _buildPaymentOption('RAZORPAY', 'Razorpay Gateway (UPI, Cards, NetBanking, Wallets)', Icons.verified_user),
+                  _buildPaymentOption('UPI', 'Manual UPI ID / VPA Entry', Icons.qr_code_2),
+                  _buildPaymentOption('CARD', 'Credit / Debit Cards Direct', Icons.credit_card),
+                ],
+              ),
+            ),
             const SizedBox(height: 20),
 
             if (_selectedPaymentMethod == 'UPI') ...[
@@ -246,7 +254,10 @@ class _PaymentScreenState extends State<PaymentScreen> {
               const SizedBox(height: 6),
               TextField(
                 controller: _upiController,
+                keyboardType: TextInputType.emailAddress,
                 decoration: InputDecoration(
+                  hintText: 'e.g. name@okhdfcbank or phone@paytm',
+                  hintStyle: const TextStyle(color: Colors.black38, fontSize: 13),
                   prefixIcon: const Icon(Icons.payment, color: AppColors.travellerForestDark),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                   filled: true,
@@ -260,7 +271,10 @@ class _PaymentScreenState extends State<PaymentScreen> {
               const SizedBox(height: 6),
               TextField(
                 controller: _cardNumController,
+                keyboardType: TextInputType.number,
                 decoration: InputDecoration(
+                  hintText: 'e.g. 4532 0000 0000 8892',
+                  hintStyle: const TextStyle(color: Colors.black38, fontSize: 13),
                   prefixIcon: const Icon(Icons.credit_card, color: AppColors.travellerForestDark),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                   filled: true,
@@ -309,14 +323,10 @@ class _PaymentScreenState extends State<PaymentScreen> {
       ),
       child: RadioListTile<String>(
         value: key,
-        groupValue: _selectedPaymentMethod,
         activeColor: AppColors.travellerForestDark,
         title: Text(key, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
         subtitle: Text(subtitle, style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
         secondary: Icon(icon, color: AppColors.travellerForestDark),
-        onChanged: (val) {
-          if (val != null) setState(() => _selectedPaymentMethod = val);
-        },
       ),
     );
   }
