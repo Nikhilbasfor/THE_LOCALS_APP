@@ -278,15 +278,14 @@ class _ExploreHomeScreenState extends State<ExploreHomeScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // HERO BANNER SECTION (Requirements 3 & 4)
+              // HERO BANNER SECTION (Requirements 3 & 4 - Crystal clear mountain scenery, no green filter)
               Container(
-                decoration: const BoxDecoration(
-                  color: AppColors.travellerForestDark,
+                decoration: BoxDecoration(
                   image: DecorationImage(
-                    image: NetworkImage('https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1200&q=80'),
+                    image: const NetworkImage('https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1200&q=85'),
                     fit: BoxFit.cover,
                     colorFilter: ColorFilter.mode(
-                      Color(0xDF0A241C),
+                      Colors.black.withValues(alpha: 0.45),
                       BlendMode.darken,
                     ),
                   ),
