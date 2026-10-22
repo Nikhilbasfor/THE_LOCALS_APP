@@ -34,6 +34,17 @@
 	<string>THE LOCALS requires camera access to take profile photos and capture identification documents.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>THE LOCALS requires photo library access to upload expedition gallery images and verification documents.</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.315534724848-po1u8tggj1tp0dfnsgsdfsru31n329c5</string>
+			</array>
+		</dict>
+	</array>
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>https</string>

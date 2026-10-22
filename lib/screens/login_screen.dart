@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../data/geo_data.dart';
+import '../models/user_model.dart';
 import '../repositories/auth_repository.dart';
 import '../theme/app_colors.dart';
 import '../widgets/cinematic_scenic_background.dart';
@@ -32,7 +33,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isOtpMode = true; // OTP is primary per user requirement
   String _selectedCountryCode = '+91';
   bool _otpSent = false;
-  String _generatedOtp = '';
+  String _verificationId = '';
   bool _isSendingOtp = false;
 
   bool _isLoading = false;
@@ -41,7 +42,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   bool get isGuide => widget.role == 'guide';
 
-  void _handleSendOtp() {
+  void _handleSendOtp() async {
     final phone = _phoneController.text.trim();
     if (phone.length < 6) {
       setState(() {
@@ -55,16 +56,44 @@ class _LoginScreenState extends State<LoginScreen> {
       _isSendingOtp = true;
     });
 
-    Future.delayed(const Duration(milliseconds: 600), () {
+    final fullPhone = '$_selectedCountryCode$phone';
+
+    try {
+      await _authRepo.sendPhoneOtp(
+        fullPhone: fullPhone,
+        onCodeSent: (String verificationId, int? resendToken) {
+          if (!mounted) return;
+          setState(() {
+            _verificationId = verificationId;
+            _otpSent = true;
+            _isSendingOtp = false;
+          });
+        },
+        onVerificationFailed: (FirebaseAuthException e) {
+          if (!mounted) return;
+          setState(() {
+            _isSendingOtp = false;
+            _errorMessage = e.message ?? 'SMS sending failed. Please check phone number.';
+          });
+        },
+        onAutoVerified: (PhoneAuthCredential credential) async {
+          if (!mounted) return;
+          if (credential.smsCode != null) {
+            _otpController.text = credential.smsCode!;
+          }
+          await _handleOtpLogin();
+        },
+        onCodeAutoRetrievalTimeout: (String verificationId) {
+          _verificationId = verificationId;
+        },
+      );
+    } catch (e) {
       if (!mounted) return;
-      final code = (100000 + (DateTime.now().microsecondsSinceEpoch % 900000)).toString();
       setState(() {
-        _generatedOtp = code;
-        _otpSent = true;
         _isSendingOtp = false;
-        _otpController.text = code; // Auto-fill for seamless user experience
+        _errorMessage = e.toString().replaceAll('Exception: ', '');
       });
-    });
+    }
   }
 
   Future<void> _handleOtpLogin() async {
@@ -75,8 +104,8 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() => _errorMessage = 'Please enter a valid phone number.');
       return;
     }
-    if (!_otpSent || otp != _generatedOtp) {
-      setState(() => _errorMessage = 'Invalid OTP code. Please enter the 6-digit code.');
+    if (otp.length < 6) {
+      setState(() => _errorMessage = 'Please enter the 6-digit SMS OTP code.');
       return;
     }
 
@@ -85,13 +114,23 @@ class _LoginScreenState extends State<LoginScreen> {
       _errorMessage = null;
     });
 
-    final fullPhone = '$_selectedCountryCode $phone';
+    final fullPhone = '$_selectedCountryCode$phone';
 
     try {
-      final userModel = await _authRepo.loginWithPhoneOtp(
-        fullPhone: fullPhone,
-        expectedRole: widget.role,
-      );
+      UserModel userModel;
+      if (_verificationId.isNotEmpty) {
+        userModel = await _authRepo.verifyPhoneOtpAndLogin(
+          verificationId: _verificationId,
+          smsCode: otp,
+          fullPhone: fullPhone,
+          expectedRole: widget.role,
+        );
+      } else {
+        userModel = await _authRepo.loginWithPhoneOtp(
+          fullPhone: fullPhone,
+          expectedRole: widget.role,
+        );
+      }
 
       if (!mounted) return;
 
@@ -651,7 +690,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                     const SizedBox(width: 8),
                                     Expanded(
                                       child: Text(
-                                        'OTP Sent to $_selectedCountryCode ${_phoneController.text.trim()} (Code: $_generatedOtp)',
+                                        'SMS verification code sent to $_selectedCountryCode ${_phoneController.text.trim()}. Please enter below:',
                                         style: const TextStyle(color: Colors.white, fontSize: 12),
                                       ),
                                     ),

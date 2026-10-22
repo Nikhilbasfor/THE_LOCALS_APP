@@ -69,6 +69,70 @@ class AuthRepository {
     return userModel;
   }
 
+  Future<void> sendPhoneOtp({
+    required String fullPhone,
+    required Function(String verificationId, int? resendToken) onCodeSent,
+    required Function(FirebaseAuthException e) onVerificationFailed,
+    required Function(PhoneAuthCredential credential) onAutoVerified,
+    required Function(String verificationId) onCodeAutoRetrievalTimeout,
+  }) async {
+    final cleanPhone = fullPhone.replaceAll(' ', '').trim();
+    await _auth.verifyPhoneNumber(
+      phoneNumber: cleanPhone,
+      timeout: const Duration(seconds: 60),
+      verificationCompleted: onAutoVerified,
+      verificationFailed: onVerificationFailed,
+      codeSent: onCodeSent,
+      codeAutoRetrievalTimeout: onCodeAutoRetrievalTimeout,
+    );
+  }
+
+  Future<UserModel> verifyPhoneOtpAndLogin({
+    required String verificationId,
+    required String smsCode,
+    required String fullPhone,
+    required String expectedRole,
+  }) async {
+    final credential = PhoneAuthProvider.credential(
+      verificationId: verificationId,
+      smsCode: smsCode,
+    );
+    final userCredential = await _auth.signInWithCredential(credential);
+    final user = userCredential.user;
+    if (user == null) throw Exception('Authentication failed. User is null.');
+
+    final userDoc = await _firestore.collection('users').doc(user.uid).get();
+    if (!userDoc.exists || userDoc.data() == null) {
+      final newUser = UserModel(
+        uid: user.uid,
+        name: expectedRole == 'guide' ? 'Local Host' : 'Local Explorer',
+        email: user.email ?? '${fullPhone.replaceAll(RegExp(r'\D'), '')}@thelocals.in',
+        role: expectedRole.toLowerCase(),
+        phone: fullPhone,
+        state: 'Uttarakhand',
+        city: '',
+        experienceYears: 0,
+        bio: '',
+        verified: expectedRole.toLowerCase() == 'guide' ? false : true,
+        onboardingComplete: false,
+      );
+      await _firestore.collection('users').doc(user.uid).set(newUser.toMap());
+      return newUser;
+    }
+
+    final userModel = UserModel.fromMap(userDoc.data()!, userDoc.id);
+
+    if (expectedRole.isNotEmpty && userModel.role.toLowerCase() != expectedRole.toLowerCase()) {
+      await _auth.signOut();
+      throw Exception(
+        'Account Role Mismatch: This account is registered as a ${userModel.role.toUpperCase()}. '
+        'Please sign in through the correct portal.',
+      );
+    }
+
+    return userModel;
+  }
+
   Future<UserModel> loginWithPhoneOtp({
     required String fullPhone,
     required String expectedRole,
@@ -151,40 +215,57 @@ class AuthRepository {
     required String fullPhone,
     required String name,
     required String role,
+    String? verificationId,
+    String? smsCode,
     String country = 'India',
     String state = '',
     String city = '',
     int experienceYears = 0,
     String bio = '',
   }) async {
-    final cleanDigits = fullPhone.replaceAll(RegExp(r'\D'), '');
-    final syntheticEmail = 'phone_$cleanDigits@thelocals.in';
-    final syntheticPassword = 'locals_otp_pass_$cleanDigits';
+    String uid;
+    String userEmail;
 
-    UserCredential credential;
-    try {
-      credential = await _auth.createUserWithEmailAndPassword(
-        email: syntheticEmail,
-        password: syntheticPassword,
+    if (verificationId != null && smsCode != null && verificationId.isNotEmpty && smsCode.isNotEmpty) {
+      final credential = PhoneAuthProvider.credential(
+        verificationId: verificationId,
+        smsCode: smsCode,
       );
-    } on FirebaseAuthException catch (e) {
-      if (e.code == 'email-already-in-use') {
-        credential = await _auth.signInWithEmailAndPassword(
-          email: syntheticEmail,
+      final userCredential = await _auth.signInWithCredential(credential);
+      final user = userCredential.user;
+      if (user == null) throw Exception('Registration failed. User is null.');
+      uid = user.uid;
+      userEmail = user.email ?? '${fullPhone.replaceAll(RegExp(r'\D'), '')}@thelocals.in';
+    } else {
+      final cleanDigits = fullPhone.replaceAll(RegExp(r'\D'), '');
+      userEmail = 'phone_$cleanDigits@thelocals.in';
+      final syntheticPassword = 'locals_otp_pass_$cleanDigits';
+
+      UserCredential credential;
+      try {
+        credential = await _auth.createUserWithEmailAndPassword(
+          email: userEmail,
           password: syntheticPassword,
         );
-      } else {
-        rethrow;
+      } on FirebaseAuthException catch (e) {
+        if (e.code == 'email-already-in-use') {
+          credential = await _auth.signInWithEmailAndPassword(
+            email: userEmail,
+            password: syntheticPassword,
+          );
+        } else {
+          rethrow;
+        }
       }
+      final u = credential.user?.uid;
+      if (u == null) throw Exception('Registration failed. User ID is null.');
+      uid = u;
     }
-
-    final uid = credential.user?.uid;
-    if (uid == null) throw Exception('Registration failed. User ID is null.');
 
     final newUser = UserModel(
       uid: uid,
       name: name.trim(),
-      email: syntheticEmail,
+      email: userEmail,
       role: role.toLowerCase(),
       phone: fullPhone.trim(),
       state: state.trim(),

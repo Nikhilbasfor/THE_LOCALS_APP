@@ -63,7 +63,7 @@ class _GuideOnboardingScreenState extends State<GuideOnboardingScreen> {
   final _otpController = TextEditingController();
   String _selectedCountryCode = '+91';
   bool _otpSent = false;
-  String _generatedOtp = '';
+  String _verificationId = '';
   bool _isSendingOtp = false;
 
   // Step 1 Controllers & Cascading Geography (Requirements 11 & 12)
@@ -214,7 +214,7 @@ class _GuideOnboardingScreenState extends State<GuideOnboardingScreen> {
   }
 
   // STEP 0: PHONE OTP REGISTRATION (Requirement 3)
-  void _handleSendOtpStep0() {
+  Future<void> _handleSendOtpStep0() async {
     final name = _nameController.text.trim();
     final phone = _phoneController.text.trim();
 
@@ -233,36 +233,79 @@ class _GuideOnboardingScreenState extends State<GuideOnboardingScreen> {
 
     setState(() => _isSendingOtp = true);
 
-    Future.delayed(const Duration(milliseconds: 600), () {
+    final cleanDigits = phone.replaceAll(RegExp(r'\D'), '');
+    final fullPhone = '$_selectedCountryCode$cleanDigits';
+
+    try {
+      final authRepo = AuthRepository();
+      await authRepo.sendPhoneOtp(
+        fullPhone: fullPhone,
+        onCodeSent: (String verificationId, int? resendToken) {
+          if (!mounted) return;
+          setState(() {
+            _verificationId = verificationId;
+            _otpSent = true;
+            _isSendingOtp = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('SMS OTP sent to $fullPhone'),
+              backgroundColor: AppColors.headerNavy,
+            ),
+          );
+        },
+        onVerificationFailed: (FirebaseAuthException e) {
+          if (!mounted) return;
+          setState(() => _isSendingOtp = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(e.message ?? 'SMS sending failed. Please check phone number.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        },
+        onAutoVerified: (PhoneAuthCredential credential) async {
+          if (!mounted) return;
+          if (credential.smsCode != null) {
+            _otpController.text = credential.smsCode!;
+          }
+          await _handleVerifyOtpStep0();
+        },
+        onCodeAutoRetrievalTimeout: (String verificationId) {
+          _verificationId = verificationId;
+        },
+      );
+    } catch (e) {
       if (!mounted) return;
-      final code = (100000 + (DateTime.now().microsecondsSinceEpoch % 900000)).toString();
-      setState(() {
-        _generatedOtp = code;
-        _otpSent = true;
-        _isSendingOtp = false;
-        _otpController.text = code;
-      });
+      setState(() => _isSendingOtp = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Verification OTP code sent: $code'),
-          backgroundColor: AppColors.headerNavy,
+          content: Text('SMS sending failed: $e'),
+          backgroundColor: Colors.red,
         ),
       );
-    });
+    }
   }
 
   Future<void> _handleVerifyOtpStep0() async {
     final otp = _otpController.text.trim();
-    if (!_otpSent || otp != _generatedOtp) {
+    if (!_otpSent) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invalid OTP code. Please enter the 6-digit code.')),
+        const SnackBar(content: Text('Please request an SMS OTP first.')),
+      );
+      return;
+    }
+    if (otp.length < 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter the 6-digit SMS OTP code.')),
       );
       return;
     }
 
     setState(() => _isSubmitting = true);
 
-    final fullPhone = '$_selectedCountryCode ${_phoneController.text.trim()}';
+    final cleanDigits = _phoneController.text.trim().replaceAll(RegExp(r'\D'), '');
+    final fullPhone = '$_selectedCountryCode$cleanDigits';
 
     try {
       final authRepo = AuthRepository();
@@ -270,6 +313,8 @@ class _GuideOnboardingScreenState extends State<GuideOnboardingScreen> {
         fullPhone: fullPhone,
         name: _nameController.text.trim(),
         role: 'guide',
+        verificationId: _verificationId,
+        smsCode: otp,
         country: _selectedCountry,
         state: _selectedOperatingState,
         city: _selectedCity,
@@ -612,7 +657,7 @@ class _GuideOnboardingScreenState extends State<GuideOnboardingScreen> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    'OTP sent to $_selectedCountryCode ${_phoneController.text.trim()} (Code: $_generatedOtp)',
+                    'SMS OTP sent to $_selectedCountryCode ${_phoneController.text.trim()}. Please enter the 6-digit code:',
                     style: const TextStyle(fontSize: 13, color: Color(0xFF065F46), fontWeight: FontWeight.bold),
                   ),
                 ),

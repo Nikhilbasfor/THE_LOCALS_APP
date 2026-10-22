@@ -9,10 +9,18 @@
       "client_info": {
         "mobilesdk_app_id": "1:315534724848:android:a62406ef00d43971eebc35",
         "android_client_info": {
-          "package_name": "com.prakash.thelocals"
+          "package_name": "com.yatraki.app"
         }
       },
       "oauth_client": [
+        {
+          "client_id": "315534724848-vbh1ovbf6i9he12rt91nd9fq5k6sigtf.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.yatraki.app",
+            "certificate_hash": "7eecb4b2b61db9be2611f74eb90e25a2696d2f1e"
+          }
+        },
         {
           "client_id": "315534724848-44q6gmfhkv35tdluk24b8480i44rkvie.apps.googleusercontent.com",
           "client_type": 3
@@ -29,6 +37,13 @@
             {
               "client_id": "315534724848-44q6gmfhkv35tdluk24b8480i44rkvie.apps.googleusercontent.com",
               "client_type": 3
+            },
+            {
+              "client_id": "315534724848-po1u8tggj1tp0dfnsgsdfsru31n329c5.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.yatraki.yatrakiMobile"
+              }
             }
           ]
         }
