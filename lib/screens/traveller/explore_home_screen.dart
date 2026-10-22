@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../data/geo_data.dart';
 import '../../models/experience_model.dart';
@@ -244,6 +245,49 @@ class _ExploreHomeScreenState extends State<ExploreHomeScreen> {
           ],
         ),
         actions: [
+          StreamBuilder<User?>(
+            stream: FirebaseAuth.instance.authStateChanges(),
+            builder: (context, snapshot) {
+              final user = snapshot.data;
+              if (user == null) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const LoginScreen(role: 'traveller')),
+                      );
+                    },
+                    icon: const Icon(Icons.login, size: 14),
+                    label: const Text('Sign In', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF0284C7),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                );
+              }
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.favorite, color: Colors.redAccent, size: 20),
+                    tooltip: 'My Wishlist',
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const TravellerWishlistTab()),
+                      );
+                    },
+                  ),
+                  TravellerNotificationBell(),
+                  const SizedBox(width: 4),
+                ],
+              );
+            },
+          ),
           // Host a Trip Toggle / Direct Sign In Button (Requirement 10)
           TextButton.icon(
             onPressed: _showHostTripDialog,
@@ -258,18 +302,7 @@ class _ExploreHomeScreenState extends State<ExploreHomeScreen> {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
           ),
-          const SizedBox(width: 4),
-          IconButton(
-            icon: const Icon(Icons.favorite, color: Colors.redAccent, size: 20),
-            tooltip: 'My Wishlist',
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const TravellerWishlistTab()),
-              );
-            },
-          ),
-          TravellerNotificationBell(),
-          const SizedBox(width: 4),
+          const SizedBox(width: 6),
         ],
       ),
       body: TravelPatternBackground(
@@ -475,7 +508,7 @@ class _ExploreHomeScreenState extends State<ExploreHomeScreen> {
                             const Text('STATE / TERRITORY', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.textMuted)),
                             const SizedBox(height: 4),
                             DropdownButtonFormField<String>(
-                              value: _selectedState,
+                              initialValue: _selectedState,
                               isDense: true,
                               decoration: InputDecoration(
                                 contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -492,7 +525,7 @@ class _ExploreHomeScreenState extends State<ExploreHomeScreen> {
                             const Text('DESTINATIONS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.textMuted)),
                             const SizedBox(height: 4),
                             DropdownButtonFormField<String>(
-                              value: _selectedDestination,
+                              initialValue: _selectedDestination,
                               isDense: true,
                               decoration: InputDecoration(
                                 contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -509,7 +542,7 @@ class _ExploreHomeScreenState extends State<ExploreHomeScreen> {
                             const Text('CATEGORY', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.textMuted)),
                             const SizedBox(height: 4),
                             DropdownButtonFormField<String>(
-                              value: _selectedCategory,
+                              initialValue: _selectedCategory,
                               isDense: true,
                               decoration: InputDecoration(
                                 contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),

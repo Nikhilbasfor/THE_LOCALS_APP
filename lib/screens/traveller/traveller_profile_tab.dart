@@ -7,6 +7,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../../repositories/auth_repository.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/privacy_policy_dialog.dart';
+import '../login_screen.dart';
 import '../role_selection_screen.dart';
 
 class TravellerProfileTab extends StatefulWidget {
@@ -420,9 +421,68 @@ class _TravellerProfileTabState extends State<TravellerProfileTab> {
   Widget build(BuildContext context) {
     final user = _authRepo.currentUser;
     if (user == null) {
-      return const Scaffold(
+      return Scaffold(
         backgroundColor: AppColors.bgLight,
-        body: Center(child: Text('Please log in.')),
+        appBar: AppBar(
+          backgroundColor: AppColors.travellerForestDark,
+          title: const Text('MY PROFILE', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+          centerTitle: true,
+          elevation: 0,
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4)),
+                    ],
+                  ),
+                  child: const Icon(Icons.person_outline, size: 64, color: Color(0xFF0284C7)),
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Guest Explorer',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.headerNavy),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Sign in to manage your bookings, wishlists, personal bio, and travel preferences.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 13, color: AppColors.textMuted),
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const LoginScreen(role: 'traveller')),
+                    );
+                  },
+                  icon: const Icon(Icons.login, size: 18),
+                  label: const Text('Sign In / Create Account', style: TextStyle(fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0284C7),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                TextButton.icon(
+                  icon: const Icon(Icons.privacy_tip_outlined, color: AppColors.headerNavy, size: 18),
+                  label: const Text('Privacy Policy & Data Rights', style: TextStyle(color: AppColors.headerNavy, fontWeight: FontWeight.w600)),
+                  onPressed: () => PrivacyPolicyDialog.show(context),
+                ),
+              ],
+            ),
+          ),
+        ),
       );
     }
 

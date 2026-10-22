@@ -6,6 +6,7 @@ import '../../models/experience_model.dart';
 import '../../repositories/auth_repository.dart';
 import '../../repositories/booking_repository.dart';
 import '../../theme/app_colors.dart';
+import '../login_screen.dart';
 import 'payment_screen.dart';
 
 class BookingScreen extends StatefulWidget {
@@ -33,8 +34,42 @@ class _BookingScreenState extends State<BookingScreen> {
   Future<void> _handleConfirmBooking() async {
     final user = _authRepo.currentUser;
     if (user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please sign in to place a booking.')),
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.lock_outline, color: Color(0xFF0284C7)),
+              SizedBox(width: 8),
+              Text('Sign In Required', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: const Text(
+            'To reserve your spot and confirm your itinerary with the local host, please sign in or create a traveller account.',
+            style: TextStyle(fontSize: 13, height: 1.4),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF0284C7),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const LoginScreen(role: 'traveller')),
+                );
+              },
+              child: const Text('Sign In / Register'),
+            ),
+          ],
+        ),
       );
       return;
     }

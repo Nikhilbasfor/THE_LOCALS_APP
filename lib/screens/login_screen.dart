@@ -826,6 +826,28 @@ class _LoginScreenState extends State<LoginScreen> {
 
                           const SizedBox(height: 20),
 
+                          if (!isGuide) ...[
+                            TextButton.icon(
+                              onPressed: () {
+                                Navigator.of(context).pushAndRemoveUntil(
+                                  MaterialPageRoute(builder: (_) => const TravellerMainScreen()),
+                                  (route) => false,
+                                );
+                              },
+                              icon: const Icon(Icons.explore, color: Color(0xFF38BDF8), size: 16),
+                              label: const Text(
+                                'Browse Trips as Guest ➔',
+                                style: TextStyle(
+                                  color: Color(0xFF38BDF8),
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                  letterSpacing: 0.4,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                          ],
+
                           // Sign up link
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,

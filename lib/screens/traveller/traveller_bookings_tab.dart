@@ -6,6 +6,7 @@ import '../../repositories/booking_repository.dart';
 import '../../repositories/review_repository.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/spring_interactions.dart';
+import '../login_screen.dart';
 
 class TravellerBookingsTab extends StatefulWidget {
   const TravellerBookingsTab({super.key});
@@ -106,8 +107,43 @@ class _TravellerBookingsTabState extends State<TravellerBookingsTab> {
           centerTitle: true,
           elevation: 0,
         ),
-        body: const Center(
-          child: Text('Please log in to view your bookings', style: TextStyle(color: AppColors.textMuted)),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.confirmation_number_outlined, size: 64, color: AppColors.textMuted.withValues(alpha: 0.4)),
+                const SizedBox(height: 16),
+                const Text(
+                  'No Active Bookings',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.headerNavy),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Sign in to view your reserved trips, payment receipts, and itinerary schedules.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 13, color: AppColors.textMuted),
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const LoginScreen(role: 'traveller')),
+                    );
+                  },
+                  icon: const Icon(Icons.login, size: 18),
+                  label: const Text('Sign In to View Bookings', style: TextStyle(fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0284C7),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       );
     }

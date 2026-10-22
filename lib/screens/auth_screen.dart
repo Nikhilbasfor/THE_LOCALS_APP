@@ -266,7 +266,7 @@ class _AuthScreenState extends State<AuthScreen> {
 
                 // Country Picker Dropdown (Requirement 11)
                 DropdownButtonFormField<String>(
-                  value: _selectedCountry,
+                  initialValue: _selectedCountry,
                   decoration: InputDecoration(
                     labelText: 'Country / Homeland',
                     prefixIcon: Icon(Icons.public, color: accentColor),
@@ -332,7 +332,7 @@ class _AuthScreenState extends State<AuthScreen> {
 
                 // State / Region Cascading Dropdown (Requirement 11)
                 DropdownButtonFormField<String>(
-                  value: availableStates.contains(_selectedState) ? _selectedState : (availableStates.isNotEmpty ? availableStates.first : null),
+                  initialValue: availableStates.contains(_selectedState) ? _selectedState : (availableStates.isNotEmpty ? availableStates.first : null),
                   decoration: InputDecoration(
                     labelText: 'State / Territory',
                     prefixIcon: Icon(Icons.map, color: accentColor),
@@ -351,7 +351,7 @@ class _AuthScreenState extends State<AuthScreen> {
                 // City / Base Town Cascading Dropdown (Requirement 11)
                 if (!_isCustomCity) ...[
                   DropdownButtonFormField<String>(
-                    value: availableCities.contains(_selectedCity) ? _selectedCity : (availableCities.isNotEmpty ? availableCities.first : null),
+                    initialValue: availableCities.contains(_selectedCity) ? _selectedCity : (availableCities.isNotEmpty ? availableCities.first : null),
                     decoration: InputDecoration(
                       labelText: 'City / Base Town',
                       prefixIcon: Icon(Icons.location_city, color: accentColor),
