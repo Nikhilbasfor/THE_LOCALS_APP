@@ -280,8 +280,18 @@ class _ExploreHomeScreenState extends State<ExploreHomeScreen> {
             children: [
               // HERO BANNER SECTION (Requirements 3 & 4)
               Container(
-                color: AppColors.travellerForestDark,
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
+                decoration: const BoxDecoration(
+                  color: AppColors.travellerForestDark,
+                  image: DecorationImage(
+                    image: NetworkImage('https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1200&q=80'),
+                    fit: BoxFit.cover,
+                    colorFilter: ColorFilter.mode(
+                      Color(0xDF0A241C),
+                      BlendMode.darken,
+                    ),
+                  ),
+                ),
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 22),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -642,22 +652,23 @@ class _ExploreHomeScreenState extends State<ExploreHomeScreen> {
                 },
               ),
 
-              // WHY CHOOSE THE LOCALS (Requirement 6)
+              // WHY CHOOSE THE LOCALS (Mint theme - no black)
               Container(
                 margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    colors: [Color(0xFF0F172A), Color(0xFF022C22)],
+                    colors: [Color(0xFFE6F4EA), Color(0xFFD1FAE5)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                   borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0xFFA7F3D0)),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.25),
+                      color: const Color(0xFF059669).withValues(alpha: 0.08),
                       blurRadius: 16,
-                      offset: const Offset(0, 6),
+                      offset: const Offset(0, 4),
                     ),
                   ],
                 ),
@@ -667,16 +678,16 @@ class _ExploreHomeScreenState extends State<ExploreHomeScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF065F46).withValues(alpha: 0.6),
+                        color: Colors.white,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFF34D399).withValues(alpha: 0.4)),
+                        border: Border.all(color: const Color(0xFF059669).withValues(alpha: 0.3)),
                       ),
                       child: const Text(
                         'WHY CHOOSE THE LOCALS',
                         style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.w800,
-                          color: Color(0xFF34D399),
+                          color: Color(0xFF065F46),
                           letterSpacing: 1.2,
                         ),
                       ),
@@ -687,13 +698,13 @@ class _ExploreHomeScreenState extends State<ExploreHomeScreen> {
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: Color(0xFF064E3B),
                       ),
                     ),
                     const SizedBox(height: 6),
                     const Text(
                       'We are not a mass-commercial travel agency. Here is why our project is fundamentally different:',
-                      style: TextStyle(fontSize: 12, color: Colors.white70, height: 1.35),
+                      style: TextStyle(fontSize: 12, color: Color(0xFF047857), height: 1.35),
                     ),
                     const SizedBox(height: 16),
 
@@ -701,7 +712,7 @@ class _ExploreHomeScreenState extends State<ExploreHomeScreen> {
                       num: '1',
                       title: '100% Native & Verified Local Hosts',
                       desc: 'Every expedition is led by born-and-raised indigenous mountain residents, certified guides, and elder storytellers. Never outsourced city contractors.',
-                      badgeColor: const Color(0xFF10B981),
+                      badgeColor: const Color(0xFF059669),
                     ),
                     const SizedBox(height: 12),
 
@@ -709,7 +720,7 @@ class _ExploreHomeScreenState extends State<ExploreHomeScreen> {
                       num: '2',
                       title: 'Intimate Micro-Groups & Slow Travel',
                       desc: 'Strict caps of 2 to 8 explorers ensure deep immersion, respectful footprint on fragile ecosystems, and meaningful relationships with host families.',
-                      badgeColor: const Color(0xFF38BDF8),
+                      badgeColor: const Color(0xFF0284C7),
                     ),
                     const SizedBox(height: 12),
 
@@ -717,7 +728,7 @@ class _ExploreHomeScreenState extends State<ExploreHomeScreen> {
                       num: '3',
                       title: 'Direct Grassroots Economic Impact',
                       desc: 'Over 85% of expedition payments stay directly inside remote valleys with homestay cooks, porters, and artisan families, keeping villages alive.',
-                      badgeColor: const Color(0xFFF59E0B),
+                      badgeColor: const Color(0xFFD97706),
                     ),
                     const SizedBox(height: 12),
 
@@ -725,7 +736,7 @@ class _ExploreHomeScreenState extends State<ExploreHomeScreen> {
                       num: '4',
                       title: 'Uncommercialized Secret Trails',
                       desc: 'Escape mass-tourism crowds. Discover hidden sacred ridges, ancestral forager paths, forgotten monastic valleys, and authentic harvest festivals.',
-                      badgeColor: const Color(0xFFF43F5E),
+                      badgeColor: const Color(0xFFE11D48),
                     ),
                     const SizedBox(height: 16),
 
@@ -733,15 +744,15 @@ class _ExploreHomeScreenState extends State<ExploreHomeScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.15))),
+                      decoration: const BoxDecoration(
+                        border: Border(top: BorderSide(color: Color(0xFFA7F3D0))),
                       ),
                       child: const Text(
                         'Locals ★ Offbeat ★ Immersive ★ Slow and Sustainable',
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w800,
-                          color: Color(0xFF6EE7B7),
+                          color: Color(0xFF065F46),
                           letterSpacing: 0.8,
                         ),
                       ),
@@ -827,8 +838,6 @@ class _ExploreHomeScreenState extends State<ExploreHomeScreen> {
         children: [
           Row(
             children: [
-              Text(emoji, style: const TextStyle(fontSize: 22)),
-              const SizedBox(width: 8),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -915,9 +924,16 @@ class _ExploreHomeScreenState extends State<ExploreHomeScreen> {
           height: 24,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: badgeColor.withValues(alpha: 0.2),
+            color: Colors.white,
             borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: badgeColor),
+            border: Border.all(color: badgeColor, width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: badgeColor.withValues(alpha: 0.15),
+                blurRadius: 4,
+                offset: const Offset(0, 1),
+              ),
+            ],
           ),
           child: Text(
             num,
@@ -931,12 +947,12 @@ class _ExploreHomeScreenState extends State<ExploreHomeScreen> {
             children: [
               Text(
                 title,
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF064E3B)),
               ),
               const SizedBox(height: 2),
               Text(
                 desc,
-                style: const TextStyle(fontSize: 12, color: Colors.white70, height: 1.35),
+                style: const TextStyle(fontSize: 12, color: Color(0xFF1F2937), height: 1.35),
               ),
             ],
           ),

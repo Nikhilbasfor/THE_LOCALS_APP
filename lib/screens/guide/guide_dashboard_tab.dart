@@ -28,18 +28,21 @@ class GuideDashboardTab extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Welcome Banner
+          // Welcome Banner with Guide Expedition Background
           Container(
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [AppColors.headerNavy, Color(0xFF2C4A7C)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
               borderRadius: BorderRadius.circular(16),
+              image: const DecorationImage(
+                image: NetworkImage('https://images.unsplash.com/photo-1551632811-561732d1e306?auto=format&fit=crop&w=1200&q=80'),
+                fit: BoxFit.cover,
+                colorFilter: ColorFilter.mode(
+                  Color(0xE60F172A),
+                  BlendMode.darken,
+                ),
+              ),
               boxShadow: const [
-                BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 4)),
+                BoxShadow(color: Colors.black26, blurRadius: 10, offset: Offset(0, 4)),
               ],
             ),
             child: Row(

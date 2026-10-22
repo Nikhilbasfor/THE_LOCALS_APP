@@ -246,8 +246,6 @@ class _VerifiedGuidesScreenState extends State<VerifiedGuidesScreen> {
         children: [
           Row(
             children: [
-              Text(emoji, style: const TextStyle(fontSize: 20)),
-              const SizedBox(width: 8),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

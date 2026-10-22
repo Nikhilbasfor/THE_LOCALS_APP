@@ -5,6 +5,8 @@ import '../../repositories/auth_repository.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/spring_interactions.dart';
 import '../role_selection_screen.dart';
+import '../login_screen.dart';
+import '../traveller/traveller_main_screen.dart';
 import 'guide_dashboard_tab.dart';
 import 'guide_experiences_tab.dart';
 import 'guide_bookings_tab.dart';
@@ -22,6 +24,79 @@ class GuideMainScreen extends StatefulWidget {
 class _GuideMainScreenState extends State<GuideMainScreen> {
   final AuthRepository _authRepo = AuthRepository();
   int _currentIdx = 0;
+
+  void _showTravellerSwitchDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: const [
+              Icon(Icons.explore, color: AppColors.travellerForestDark),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Switch to Explorer View',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textMain),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: const [
+              Text(
+                'Explore authentic expeditions, browse verified local hosts, and book intimate journeys.',
+                style: TextStyle(fontSize: 13, color: AppColors.textMuted, height: 1.4),
+              ),
+              SizedBox(height: 14),
+              Text(
+                'Choose how you want to proceed:',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textMain),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel', style: TextStyle(color: AppColors.textMuted)),
+            ),
+            OutlinedButton(
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: AppColors.headerNavy),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const LoginScreen(role: 'traveller')),
+                );
+              },
+              child: const Text('Sign In as Explorer', style: TextStyle(color: AppColors.headerNavy, fontWeight: FontWeight.bold)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.travellerForestDark,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const TravellerMainScreen()),
+                  (route) => false,
+                );
+              },
+              child: const Text('Explore Directly', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -102,6 +177,20 @@ class _GuideMainScreenState extends State<GuideMainScreen> {
               ],
             ),
             actions: [
+              // Explorer / Traveller View Switch Toggle Button
+              TextButton.icon(
+                onPressed: () => _showTravellerSwitchDialog(context),
+                icon: const Icon(Icons.explore_outlined, color: Color(0xFF6EE7B7), size: 16),
+                label: const Text(
+                  'Explorer View',
+                  style: TextStyle(color: Color(0xFF6EE7B7), fontWeight: FontWeight.bold, fontSize: 11),
+                ),
+                style: TextButton.styleFrom(
+                  backgroundColor: Colors.white.withValues(alpha: 0.12),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
               GuideNotificationBell(),
               IconButton(
                 icon: const Icon(Icons.logout, color: Colors.white70),
