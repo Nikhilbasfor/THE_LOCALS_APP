@@ -49,6 +49,7 @@
 	<array>
 		<string>https</string>
 		<string>http</string>
+		<string>maps</string>
 		<string>geo</string>
 		<string>googlechromes</string>
 		<string>comgooglemaps</string>

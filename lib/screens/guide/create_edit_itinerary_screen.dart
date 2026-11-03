@@ -10,6 +10,7 @@ import '../../models/experience_model.dart';
 import '../../repositories/auth_repository.dart';
 import '../../repositories/experience_repository.dart';
 import '../../theme/app_colors.dart';
+import '../../utils/map_helper.dart';
 
 class CreateEditItineraryScreen extends StatefulWidget {
   final ExperienceModel? experience;
@@ -1067,12 +1068,9 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
                     ),
                     const SizedBox(width: 8),
                     InkWell(
-                      onTap: () async {
+                      onTap: () {
                         final query = '${_cityController.text}, ${_stateController.text}, ${_countryController.text}'.trim();
-                        final uri = Uri.parse('https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(query)}');
-                        if (await canLaunchUrl(uri)) {
-                          await launchUrl(uri, mode: LaunchMode.externalApplication);
-                        }
+                        MapHelper.openMap(context, query: query, title: _titleController.text.trim());
                       },
                       borderRadius: BorderRadius.circular(6),
                       child: Container(
@@ -1087,7 +1085,7 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
                           children: [
                             Icon(Icons.map, size: 14, color: navyBlue),
                             SizedBox(width: 4),
-                            Text('View on Google Maps 🗺️', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: navyBlue)),
+                            Text('View on Maps 🗺️', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: navyBlue)),
                           ],
                         ),
                       ),
@@ -2040,33 +2038,27 @@ class _CreateEditItineraryScreenState extends State<CreateEditItineraryScreen> {
               _buildTextField(
                 key: const ValueKey('input_meeting_maps_url'),
                 controller: _meetingPointMapsUrlController,
-                label: 'Google Maps Link / Directions URL (Auto-filled or Custom)',
-                hint: 'https://maps.google.com/?q=...',
+                label: 'Maps Link / Directions URL (Auto-filled or Custom)',
+                hint: 'https://maps.apple.com/?q=... or https://maps.google.com/?q=...',
                 icon: Icons.map,
               ),
               const SizedBox(height: 8),
               Align(
                 alignment: Alignment.centerLeft,
                 child: OutlinedButton.icon(
-                  onPressed: () async {
-                    final urlStr = _meetingPointMapsUrlController.text.trim().isNotEmpty
-                        ? _meetingPointMapsUrlController.text.trim()
-                        : (_meetingPointController.text.trim().isNotEmpty
-                            ? 'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(_meetingPointController.text.trim())}'
-                            : '');
-                    if (urlStr.isEmpty) {
+                  onPressed: () {
+                    final query = _meetingPointController.text.trim();
+                    final customUrl = _meetingPointMapsUrlController.text.trim();
+                    if (query.isEmpty && customUrl.isEmpty) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Please enter a meeting point address or maps link first')),
                       );
                       return;
                     }
-                    final uri = Uri.parse(urlStr);
-                    if (await canLaunchUrl(uri)) {
-                      await launchUrl(uri, mode: LaunchMode.externalApplication);
-                    }
+                    MapHelper.openMap(context, query: query, title: 'Meeting Point', customUrl: customUrl);
                   },
                   icon: const Icon(Icons.directions, size: 16, color: navyBlue),
-                  label: const Text('Test on Google Maps 🗺️', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: navyBlue)),
+                  label: const Text('Test on Maps 🗺️', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: navyBlue)),
                   style: OutlinedButton.styleFrom(
                     side: const BorderSide(color: navyBlue),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -2692,7 +2684,7 @@ class _AccommodationFieldState extends State<_AccommodationField> {
                   controller: _mapsUrlController,
                   style: const TextStyle(fontSize: 11, color: AppColors.textMain),
                   decoration: InputDecoration(
-                    hintText: 'Stay Google Maps link (Auto or Custom)',
+                    hintText: 'Stay Maps link (Auto or Custom)',
                     hintStyle: const TextStyle(fontSize: 10, color: Colors.black26),
                     prefixIcon: const Icon(Icons.map, size: 14, color: _navyBlue),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
@@ -2706,17 +2698,11 @@ class _AccommodationFieldState extends State<_AccommodationField> {
               ),
               const SizedBox(width: 6),
               OutlinedButton.icon(
-                onPressed: () async {
-                  final url = _mapsUrlController.text.trim().isNotEmpty
-                      ? _mapsUrlController.text.trim()
-                      : (_nameController.text.trim().isNotEmpty
-                          ? 'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(_nameController.text.trim())}'
-                          : '');
-                  if (url.isNotEmpty) {
-                    final uri = Uri.parse(url);
-                    if (await canLaunchUrl(uri)) {
-                      await launchUrl(uri, mode: LaunchMode.externalApplication);
-                    }
+                onPressed: () {
+                  final url = _mapsUrlController.text.trim();
+                  final name = _nameController.text.trim();
+                  if (url.isNotEmpty || name.isNotEmpty) {
+                    MapHelper.openMap(context, query: name, title: name, customUrl: url);
                   }
                 },
                 icon: const Icon(Icons.open_in_new, size: 12, color: _navyBlue),

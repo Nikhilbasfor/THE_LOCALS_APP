@@ -9,6 +9,7 @@ import '../../models/review_model.dart';
 import '../../repositories/wishlist_repository.dart';
 import '../../repositories/review_repository.dart';
 import '../../theme/app_colors.dart';
+import '../../utils/map_helper.dart';
 import '../../widgets/spring_interactions.dart';
 import 'booking_screen.dart';
 import 'guide_public_profile_screen.dart';
@@ -498,15 +499,12 @@ class _ExperienceDetailModalState extends State<ExperienceDetailModal> {
                           Text(exp.meetingPoint, style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
                           const SizedBox(height: 8),
                           OutlinedButton.icon(
-                            onPressed: () async {
-                              final urlStr = exp.meetingPointMapsUrl.isNotEmpty
-                                  ? exp.meetingPointMapsUrl
-                                  : 'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(exp.meetingPoint)}';
-                              final url = Uri.parse(urlStr);
-                              if (await canLaunchUrl(url)) {
-                                await launchUrl(url, mode: LaunchMode.externalApplication);
-                              }
-                            },
+                            onPressed: () => MapHelper.openMap(
+                              context,
+                              query: exp.meetingPoint,
+                              title: exp.title,
+                              customUrl: exp.meetingPointMapsUrl,
+                            ),
                             icon: const Icon(Icons.directions, size: 16, color: AppColors.travellerForestDark),
                             label: const Text('Directions / Open in Maps 🗺️', style: TextStyle(fontSize: 12, color: AppColors.travellerForestDark, fontWeight: FontWeight.bold)),
                             style: OutlinedButton.styleFrom(
@@ -746,15 +744,12 @@ class _ExperienceDetailModalState extends State<ExperienceDetailModal> {
                     const SizedBox(height: 6),
                   ] else if (day.accommodation.isNotEmpty) ...[
                     InkWell(
-                      onTap: () async {
-                        final urlStr = day.accommodationMapsUrl.isNotEmpty
-                            ? day.accommodationMapsUrl
-                            : 'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(day.accommodation)}';
-                        final uri = Uri.parse(urlStr);
-                        if (await canLaunchUrl(uri)) {
-                          await launchUrl(uri, mode: LaunchMode.externalApplication);
-                        }
-                      },
+                      onTap: () => MapHelper.openMap(
+                        context,
+                        query: day.accommodation,
+                        title: day.dayTitle,
+                        customUrl: day.accommodationMapsUrl,
+                      ),
                       child: Row(
                         children: [
                           const Icon(Icons.hotel, size: 14, color: AppColors.headerNavy),

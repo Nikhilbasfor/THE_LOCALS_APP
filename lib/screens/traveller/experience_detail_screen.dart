@@ -8,6 +8,7 @@ import '../../models/review_model.dart';
 import '../../repositories/wishlist_repository.dart';
 import '../../repositories/review_repository.dart';
 import '../../theme/app_colors.dart';
+import '../../utils/map_helper.dart';
 import '../../widgets/spring_interactions.dart';
 import 'booking_screen.dart';
 
@@ -386,15 +387,12 @@ class _ExperienceDetailScreenState extends State<ExperienceDetailScreen> {
                               _MetaInfoRow(icon: Icons.place, title: 'Meeting Point / Pickup Spot', detail: exp.meetingPoint),
                               const SizedBox(height: 6),
                               InkWell(
-                                onTap: () async {
-                                  final urlStr = exp.meetingPointMapsUrl.isNotEmpty
-                                      ? exp.meetingPointMapsUrl
-                                      : 'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(exp.meetingPoint)}';
-                                  final mapsUri = Uri.parse(urlStr);
-                                  if (await canLaunchUrl(mapsUri)) {
-                                    await launchUrl(mapsUri, mode: LaunchMode.externalApplication);
-                                  }
-                                },
+                                onTap: () => MapHelper.openMap(
+                                  context,
+                                  query: exp.meetingPoint,
+                                  title: exp.title,
+                                  customUrl: exp.meetingPointMapsUrl,
+                                ),
                                 child: Container(
                                   width: double.infinity,
                                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -409,7 +407,7 @@ class _ExperienceDetailScreenState extends State<ExperienceDetailScreen> {
                                       Icon(Icons.directions, size: 18, color: AppColors.travellerForestDark),
                                       SizedBox(width: 8),
                                       Text(
-                                        'Open Directions in Google Maps 🗺️',
+                                        MapHelper.openDirectionsLabel,
                                         style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.travellerForestDark),
                                       ),
                                     ],
@@ -634,15 +632,12 @@ class _DayAccordionCard extends StatelessWidget {
                   const SizedBox(height: 10),
                 ] else if (day.accommodation.isNotEmpty || day.accommodationMapsUrl.isNotEmpty) ...[
                   InkWell(
-                    onTap: () async {
-                      final urlStr = day.accommodationMapsUrl.isNotEmpty
-                          ? day.accommodationMapsUrl
-                          : 'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(day.accommodation)}';
-                      final uri = Uri.parse(urlStr);
-                      if (await canLaunchUrl(uri)) {
-                        await launchUrl(uri, mode: LaunchMode.externalApplication);
-                      }
-                    },
+                    onTap: () => MapHelper.openMap(
+                      context,
+                      query: day.accommodation,
+                      title: day.dayTitle,
+                      customUrl: day.accommodationMapsUrl,
+                    ),
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                       decoration: BoxDecoration(
