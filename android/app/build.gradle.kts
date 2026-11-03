@@ -25,7 +25,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.yatraki.app"
+        applicationId = "com.prakash.thelocals"
         minSdk = 24
         targetSdk = 36
         versionCode = flutter.versionCode
